@@ -4,9 +4,10 @@ export const createOrganizerSchema = z.object({
   name: z
     .string()
     .trim()
-        .min(4, "Organizer name must be at least 4 characters").max(50, "Organizer name must be less than 50 characters"),
+    .min(4, "Organizer name must be at least 4 characters")
+    .max(50, "Organizer name must be less than 50 characters"),
 
-  logoUrl: z.string().url("Logo URL must be a valid URL"),
+  logoUrl: z.url("Logo URL must be a valid URL"),
 
   heroTitle: z
     .string()

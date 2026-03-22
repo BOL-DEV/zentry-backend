@@ -1,0 +1,19 @@
+info:
+  name: Get Organizer By slug
+  type: http
+  seq: 2
+
+http:
+  method: GET
+  url: 127.0.0.1:4000/api/v1/organizer/:pulse-events
+  params:
+    - name: pulse-events
+      value: pulse-events
+      type: path
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

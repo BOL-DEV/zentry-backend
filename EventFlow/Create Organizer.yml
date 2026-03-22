@@ -10,9 +10,13 @@ http:
     type: json
     data: |-
       {
-        "name":"boldev",
-        "slug":"pulse-events",
-        "logoUrl":"bolsbbhbh"
+        "name":"boldev-events",
+        "logoUrl":"http://localhost:3000/_next/image?url=https%3A%2F%2Fv0-event-web-app-prototype.vercel.app%2Fnetworking-event-elegant-venue.jpg&w=828&q=75",
+        "heroTitle":"jashjkdjkanj jsskhasjdhjhghafssgcfgscg jsjhdgfdghsfhsgajjldjksd sjgjhdgghasfkjdsjdjhghjdfghd kdhjjhjhd",
+        "heroSubtitle":"sdjbjbdxnxhssABDDBB",
+        "about":"Yoo whatsuppp.......",
+        "contactEmail":"abahjhjsjj@mail.com",
+        "contactPhone": "0987652767"
       }
   auth: inherit
 

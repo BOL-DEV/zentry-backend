@@ -47,7 +47,6 @@ const organizerSchema = new Schema(
       trim: true,
     },
   },
-  
   {
     timestamps: true,
     versionKey: false,
