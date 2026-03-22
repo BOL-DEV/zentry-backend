@@ -37,4 +37,3 @@ export const organizerSlugParamSchema = z.object({
     .regex(/^[a-z0-9-]+$/, "Invalid organizer slug"),
 });
 
-export type CreateOrganizerInput = z.infer<typeof createOrganizerSchema>;
