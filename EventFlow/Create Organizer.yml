@@ -1,0 +1,23 @@
+info:
+  name: Create Organizer
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: 127.0.0.1:4000/api/v1/organizer
+  body:
+    type: json
+    data: |-
+      {
+        "name":"boldev",
+        "slug":"pulse-events",
+        "logoUrl":"bolsbbhbh"
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

@@ -1,0 +1,32 @@
+{
+  "compilerOptions": {
+    // File structure
+    "rootDir": ".",
+    "outDir": "./dist",
+
+    // Target environment
+    "target": "ES2022",
+    "module": "CommonJS", // Express + Node works best with CommonJS
+    "moduleResolution": "Node",
+    "esModuleInterop": true, // allows 'import express from "express";'
+    "forceConsistentCasingInFileNames": true,
+
+    // Node types
+    "types": ["node"],
+
+    // Strictness
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+
+    // Source maps & declarations
+    "sourceMap": true,
+    "declaration": true,
+    "declarationMap": true,
+
+    // Skip checking node_modules
+    "skipLibCheck": true
+  },
+  "include": ["**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}
