@@ -7,9 +7,9 @@ import { AppError } from "../utils/appError";
 
 export const createOrganizer = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
-    const validatedData = createOrganizerSchema.parse(req.body);
+    const data = createOrganizerSchema.parse(req.body);
 
-    const slug = generateSlug(validatedData.name);
+    const slug = generateSlug(data.name);
 
     const existingOrganizer = await Organizer.findOne({ slug });
 
@@ -18,7 +18,7 @@ export const createOrganizer = catchAsync(
     }
 
     const organizer = await Organizer.create({
-      ...validatedData,
+      ...data,
       slug,
     });
 
@@ -31,20 +31,21 @@ export const createOrganizer = catchAsync(
   },
 );
 
-
-export const getOrganizerBySlug = catchAsync(async (req: Request, res: Response, next: NextFunction) => { 
+export const getOrganizerBySlug = catchAsync(
+  async (req: Request, res: Response, next: NextFunction) => {
     const { slug } = organizerSlugParamSchema.parse(req.params);
 
     const organizer = await Organizer.findOne({ slug });
 
     if (!organizer) {
-        return next(new AppError("Organizer not found", 404));
+      return next(new AppError("Organizer not found", 404));
     }
 
     res.status(200).json({
-        status: "success",
-        data: {
-            organizer,
-        },
+      status: "success",
+      data: {
+        organizer,
+      },
     });
-});
+  },
+);
