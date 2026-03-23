@@ -1,5 +1,5 @@
 info:
-  name: Get Organizer By slug
+  name: "Get Organizer "
   type: http
   seq: 2
 
