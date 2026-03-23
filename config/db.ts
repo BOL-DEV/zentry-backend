@@ -1,4 +1,7 @@
 import mongoose, { ConnectOptions } from "mongoose";
+import dotenv from "dotenv";
+
+dotenv.config({ path: "./.env" });
 
 const DB = process.env.MONGO_URI?.replace(
   "<db_password>",

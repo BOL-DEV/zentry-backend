@@ -3,13 +3,23 @@ import {
   createOrganizer,
   getOrganizerBySlug,
 } from "../controllers/organizerController";
-import { createGalleryItem } from "../controllers/galleryController";
+import {
+  createGalleryItems,
+  getGalleryItems,
+} from "../controllers/galleryController";
+import { checkOrganizerExist } from "../middlewares/checkOrganizerExist";
+import { createEvent } from "../controllers/eventController";
 
 const router = Router();
 
 router.route("/").post(createOrganizer);
-router.route("/:slug").get(getOrganizerBySlug);
+router.route("/:slug").get(checkOrganizerExist, getOrganizerBySlug);
 
-router.route("/:slug/gallery").post(createGalleryItem);
+router
+  .route("/:slug/gallery")
+  .post(checkOrganizerExist, createGalleryItems)
+  .get(checkOrganizerExist, getGalleryItems);
 
-export default router
+router.route("/:slug/events").post(checkOrganizerExist, createEvent);
+
+export default router;

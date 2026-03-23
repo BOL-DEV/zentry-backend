@@ -33,9 +33,13 @@ export const createOrganizer = catchAsync(
 
 export const getOrganizerBySlug = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
-    const { slug } = organizerSlugParamSchema.parse(req.params);
+    const organizerId = req.organizer?._id;
 
-    const organizer = await Organizer.findOne({ slug });
+    if (!organizerId) {
+      return next(new AppError("Organizer not found", 404));
+    }
+
+    const organizer = await Organizer.findById(organizerId);
 
     if (!organizer) {
       return next(new AppError("Organizer not found", 404));

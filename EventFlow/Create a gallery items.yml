@@ -1,0 +1,23 @@
+info:
+  name: Create a gallery items
+  type: http
+  seq: 5
+
+http:
+  method: POST
+  url: 127.0.0.1:4000/api/v1/organizer/pulse-events/gallery
+  body:
+    type: json
+    data: |-
+      {
+        "imageUrl":"https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRQkx5KIgZAFkq3UtA4l6pG8dssEdLCZ-M7Og&s",
+        "caption":"Hiii",
+        "altText":"yooo"
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
