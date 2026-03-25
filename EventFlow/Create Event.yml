@@ -10,7 +10,7 @@ http:
     type: json
     data: |-
       {
-        "title": "Lagos Tech Summit",
+        "title": "Lagos Tech ",
         "description": "A major gathering for developers and founders in Lagos.",
         "date": "2026-08-14T10:00:00.000Z",
         "location": "Eko Convention Center",
