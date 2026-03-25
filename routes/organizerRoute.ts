@@ -8,7 +8,11 @@ import {
   getGalleryItems,
 } from "../controllers/galleryController";
 import { checkOrganizerExist } from "../middlewares/checkOrganizerExist";
-import { createEvent } from "../controllers/eventController";
+import {
+  createEvent,
+  getOrganizerEvents,
+  getEventById,
+} from "../controllers/eventController";
 
 const router = Router();
 
@@ -20,6 +24,11 @@ router
   .post(checkOrganizerExist, createGalleryItems)
   .get(checkOrganizerExist, getGalleryItems);
 
-router.route("/:slug/events").post(checkOrganizerExist, createEvent);
+router
+  .route("/:slug/events")
+  .post(checkOrganizerExist, createEvent)
+  .get(checkOrganizerExist, getOrganizerEvents);
+
+router.route("/:slug/events/:eventId").get(checkOrganizerExist, getEventById);
 
 export default router;

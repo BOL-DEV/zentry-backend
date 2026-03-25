@@ -44,6 +44,8 @@ const gallerySchema = new Schema<IGallery>(
 
 gallerySchema.index({ organizerId: 1, displayOrder: 1 });
 
+gallerySchema.index({ organizerId: 1, imageUrl: 1 }, { unique: true });
+
 const Gallery = model<IGallery>('Gallery', gallerySchema);
 
 export default Gallery;
