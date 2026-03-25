@@ -1,0 +1,27 @@
+info:
+  name: Create Event
+  type: http
+  seq: 7
+
+http:
+  method: POST
+  url: 127.0.0.1:4000/api/v1/organizer/pulse-events/events
+  body:
+    type: json
+    data: |-
+      {
+        "title": "Lagos Tech Summit",
+        "description": "A major gathering for developers and founders in Lagos.",
+        "date": "2026-08-14T10:00:00.000Z",
+        "location": "Eko Convention Center",
+        "posterUrl": "https://example.com/poster.jpg",
+        "dressCode": "Smart casual",
+        "policies": "No refunds after purchase."
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

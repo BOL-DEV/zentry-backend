@@ -11,6 +11,17 @@ export const createGalleryItems = catchAsync(async (req, res, next) => {
     return next(new AppError("Organizer not found", 404));
   }
 
+  const existingGalleryItem = await Gallery.findOne({
+    organizerId: organizer._id,
+    imageUrl: data.imageUrl,
+  }).lean();
+
+  if (existingGalleryItem) {
+    return next(
+      new AppError("This gallery image already exists for this organizer", 400),
+    );
+  }
+
   const galleryItem = await Gallery.create({
     organizerId: organizer._id,
     imageUrl: data.imageUrl,
@@ -45,6 +56,7 @@ export const getGalleryItems = catchAsync(async (req, res, next) => {
       organizer: {
         slug: organizer.slug,
       },
+      results: gallery.length,
       gallery,
     },
   });

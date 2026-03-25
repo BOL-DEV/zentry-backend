@@ -38,3 +38,11 @@ export const organizerSlugParamSchema = z.object({
     .min(1, "Organizer slug is required")
     .regex(/^[a-z0-9-]+$/, "Invalid organizer slug"),
 });
+
+export const eventIdParamSchema = z.object({
+  id: z
+    .string()
+    .trim()
+    .length(24, "Invalid event ID")
+    .regex(/^[a-f0-9]+$/, "Invalid event ID"),
+});

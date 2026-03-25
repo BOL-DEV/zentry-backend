@@ -61,6 +61,7 @@ const eventSchema = new Schema<IEvent>(
 );
 
 eventSchema.index({ organizerId: 1, date: 1 });
+eventSchema.index({ organizerId: 1, title: 1, date: 1 }, { unique: true });
 
 const Event = model<IEvent>("Event", eventSchema);
 
