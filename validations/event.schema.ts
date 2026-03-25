@@ -40,9 +40,9 @@ export const organizerSlugParamSchema = z.object({
 });
 
 export const eventIdParamSchema = z.object({
-  id: z
+  eventId: z
     .string()
     .trim()
     .length(24, "Invalid event ID")
-    .regex(/^[a-f0-9]+$/, "Invalid event ID"),
+    .regex(/^[0-9a-fA-F]+$/, "Invalid event ID"),
 });

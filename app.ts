@@ -1,6 +1,7 @@
 import express from "express";
 import organizerRoute from "./routes/organizerRoute";
 import eventsRoute from "./routes/eventRoute";
+import orderRoute from "./routes/orderRoute";
 import morgan from "morgan";
 import { globalErrorHandler } from "./middlewares/errorMiddleware";
 import cors from "cors";
@@ -23,8 +24,9 @@ app.use(async (_req, _res, next) => {
 
 app.use("/api/v1/organizer", organizerRoute);
 app.use("/api/v1/events", eventsRoute);
+app.use("/api/v1/orders", orderRoute);
 
-app.use("/", (_req, res) => {
+app.get("/", (_req, res) => {
   res.status(200).json({
     status: "success",
     message: "Welcome to the EventFlow API!",

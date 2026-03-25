@@ -1,0 +1,33 @@
+info:
+  name: Create Order
+  type: http
+  seq: 11
+
+http:
+  method: POST
+  url: 127.0.0.1:4000/api/v1/organizer/pulse-events/events/69c31bf7028f9a474bdcda17/purchases
+  body:
+    type: json
+    data: |-
+      {
+        "buyerName": "Bol",
+        "buyerEmail": "bol@email.com",
+        "buyerPhone": "08012345678",
+        "items": [
+          {
+            "ticketTypeId": "69c453f8f0f2577807306f7d",
+            "quantity": 2
+          },
+          {
+            "ticketTypeId": "69c45414f0f2577807306f82",
+            "quantity": 1
+          }
+        ]
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

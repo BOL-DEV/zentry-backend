@@ -1,0 +1,15 @@
+info:
+  name: Get TicketType under a event
+  type: http
+  seq: 9
+
+http:
+  method: GET
+  url: 127.0.0.1:4000/api/v1/organizer/pulse-events/events/69c31bf7028f9a474bdcda17/ticket-types
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

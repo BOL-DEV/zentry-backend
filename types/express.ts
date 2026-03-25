@@ -8,6 +8,11 @@ declare global {
         slug: string;
         name?: string;
       };
+      event?: {
+        _id: Types.ObjectId;
+        organizerId: Types.ObjectId;
+        title?: string;
+      };
     }
   }
 }

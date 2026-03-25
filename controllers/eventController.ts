@@ -1,8 +1,5 @@
 import Event from "../models/event";
-import {
-  createEventSchema,
-  eventIdParamSchema,
-} from "../validations/event.schema";
+import { createEventSchema } from "../validations/event.schema";
 import { catchAsync } from "../utils/catchAsync";
 import { AppError } from "../utils/appError";
 import { Request, Response, NextFunction } from "express";
@@ -94,17 +91,11 @@ export const getAllEvents = catchAsync(
 export const getEventById = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
     const organizer = req.organizer;
+    const event = req.event;
 
     if (!organizer) {
       return next(new AppError("Organizer not found", 404));
     }
-
-    const { id } = eventIdParamSchema.parse(req.params);
-
-    const event = await Event.findOne({
-      _id: id,
-      organizerId: organizer._id,
-    }).lean();
 
     if (!event) {
       return next(new AppError("Event not found", 404));
