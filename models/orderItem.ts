@@ -1,10 +1,12 @@
 import { model, Schema, Document, Types } from "mongoose";
 
 export interface IOrderItem extends Document {
-  orderId: string;
-  ticketTypeId: string;
+  orderId: Types.ObjectId;
+  ticketTypeId: Types.ObjectId;
   quantity: number;
-  price: number;
+  ticketTypeName: string;
+  unitPrice: number;
+  subtotal: number;
 }
 
 const OrderItemSchema = new Schema({

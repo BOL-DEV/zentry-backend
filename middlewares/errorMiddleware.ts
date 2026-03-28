@@ -56,14 +56,7 @@ export const globalErrorHandler = (
   res: Response,
   next: NextFunction,
 ) => {
-  err.statusCode = err.statusCode || 500;
-  err.status = err.status || "error";
-
   console.log(process.env.NODE_ENV);
-
-  if (process.env.NODE_ENV === "development") {
-    return sendErrorDev(err, res);
-  }
 
   let error = err;
 
@@ -75,6 +68,13 @@ export const globalErrorHandler = (
     error = handleValidationErrorDB(error);
   } else if (error instanceof ZodError) {
     error = handleZodError(error);
+  }
+
+  error.statusCode = error.statusCode || 500;
+  error.status = error.status || "error";
+
+  if (process.env.NODE_ENV === "development") {
+    return sendErrorDev(error, res);
   }
 
   sendErrorProd(error, res);

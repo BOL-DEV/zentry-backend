@@ -46,6 +46,11 @@ const organizerSchema = new Schema(
       required: [true, "Organizer contact phone is required"],
       trim: true,
     },
+    paystackSubaccountCode: {
+      type: String,
+      required: [true, "Organizer paystack subaccount ID is required"],
+      trim: true,
+    },
   },
   {
     timestamps: true,
