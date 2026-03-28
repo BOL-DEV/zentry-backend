@@ -75,6 +75,60 @@ export const getOrganizerEvents = catchAsync(
   },
 );
 
+export const getOrganizerLandingEvents = catchAsync(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const organizer = req.organizer;
+
+    if (!organizer) {
+      return next(new AppError("Organizer not found", 404));
+    }
+
+    const now = new Date();
+
+    const featuredEvent = await Event.findOne({
+      organizerId: organizer._id,
+      date: { $gte: now },
+    })
+      .sort({
+        date: 1,
+        createdAt: -1,
+      })
+      .lean();
+
+    const upcomingEvents = await Event.find({
+      organizerId: organizer._id,
+      date: { $gte: now },
+      ...(featuredEvent ? { _id: { $ne: featuredEvent._id } } : {}),
+    })
+      .sort({
+        date: 1,
+        createdAt: -1,
+      })
+      .limit(3)
+      .lean();
+
+    const pastEvents = await Event.find({
+      organizerId: organizer._id,
+      date: { $lt: now },
+    })
+      .sort({
+        date: -1,
+        createdAt: -1,
+      })
+      .limit(3)
+      .lean();
+
+    res.status(200).json({
+      status: "success",
+      data: {
+        featuredEvent: featuredEvent ?? null,
+        upcomingEvents,
+        pastEvents,
+      },
+    });
+  },
+);
+
 export const getAllEvents = catchAsync(
   async (_req: Request, res: Response, _next: NextFunction) => {
     const events = await Event.find().sort({ date: 1, createdAt: -1 });
