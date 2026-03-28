@@ -3,6 +3,7 @@ import type { Types } from "mongoose";
 declare global {
   namespace Express {
     interface Request {
+      rawBody?: Buffer;
       organizer?: {
         _id: Types.ObjectId;
         slug: string;

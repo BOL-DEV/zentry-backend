@@ -1,9 +1,9 @@
 import { model, Types, Schema, Document } from "mongoose";
 
 export interface ITicket extends Document {
-  eventId: string;
-  ticketTypeId: string;
-  orderId: string;
+  eventId: Types.ObjectId;
+  ticketTypeId: Types.ObjectId;
+  orderId: Types.ObjectId;
   buyerName: string;
   buyerEmail: string;
   ticketCode: string;
@@ -22,7 +22,6 @@ const TicketSchema = new Schema(
       type: Types.ObjectId,
       ref: "TicketType",
       required: [true, "Ticket must belong to a ticket type"],
-      index: true,
     },
     orderId: {
       type: Types.ObjectId,
@@ -45,12 +44,14 @@ const TicketSchema = new Schema(
       type: String,
       required: [true, "Ticket code is required"],
       unique: true,
+      index: true,
       trim: true,
       uppercase: true,
     },
     status: {
       type: String,
       enum: ["valid", "checked-in"],
+      default: "valid",
     },
   },
   {
@@ -59,4 +60,9 @@ const TicketSchema = new Schema(
   },
 );
 
-export const Ticket = model<ITicket>("Ticket", TicketSchema);
+TicketSchema.index({ orderId: 1 });
+TicketSchema.index({ eventId: 1, status: 1 });
+
+const Ticket = model<ITicket>("Ticket", TicketSchema);
+
+export default Ticket;

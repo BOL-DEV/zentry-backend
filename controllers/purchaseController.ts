@@ -1,27 +1,24 @@
-import { Request, Response, NextFunction } from "express";
-import { createPurchaseSchema } from "../validations/purchase.schema";
-import { catchAsync } from "../utils/catchAsync";
-import { AppError } from "../utils/appError";
-import { TicketType } from "../models/ticketTypes";
+import type { Request, Response, NextFunction } from "express";
+import mongoose from "mongoose";
 import Order from "../models/order";
 import OrderItem from "../models/orderItem";
+import { TicketType } from "../models/ticketTypes";
+import { AppError } from "../utils/appError";
+import { catchAsync } from "../utils/catchAsync";
+import { createPurchaseSchema } from "../validations/purchase.schema";
 
 export const createPurchase = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
-    const organizer = req.organizer;
     const event = req.event;
-
-    if (!organizer) {
-      return next(new AppError("Organizer not found", 404));
-    }
 
     if (!event) {
       return next(new AppError("Event not found", 404));
     }
 
-    const data = createPurchaseSchema.parse(req.body);
+    const { buyerName, buyerEmail, buyerPhone, items } =
+      createPurchaseSchema.parse(req.body);
 
-    const ticketTypeIds = data.items.map((item) => item.ticketTypeId);
+    const ticketTypeIds = items.map((item) => item.ticketTypeId);
 
     const ticketTypes = await TicketType.find({
       _id: { $in: ticketTypeIds },
@@ -31,8 +28,8 @@ export const createPurchase = catchAsync(
     if (ticketTypes.length !== ticketTypeIds.length) {
       return next(
         new AppError(
-          "One or more ticket types are invalid for this event",
-          400,
+          "One or more ticket types were not found for this event",
+          404,
         ),
       );
     }
@@ -43,16 +40,16 @@ export const createPurchase = catchAsync(
 
     let totalAmount = 0;
 
-    const orderItemsData = data.items.map((item) => {
+    const orderItemsToCreate = items.map((item) => {
       const ticketType = ticketTypeMap.get(item.ticketTypeId);
 
       if (!ticketType) {
-        throw new AppError("Ticket type not found", 400);
+        throw new AppError("Ticket type not found", 404);
       }
 
       if (!ticketType.isActive) {
         throw new AppError(
-          `Ticket type "${ticketType.name}" is not currently available`,
+          `Ticket type "${ticketType.name}" is not active`,
           400,
         );
       }
@@ -67,48 +64,72 @@ export const createPurchase = catchAsync(
         );
       }
 
-      const subtotal = ticketType.price * item.quantity;
+      const unitPrice = ticketType.price;
+      const subtotal = unitPrice * item.quantity;
+
       totalAmount += subtotal;
 
       return {
         ticketTypeId: ticketType._id,
         ticketTypeName: ticketType.name,
-        unitPrice: ticketType.price,
         quantity: item.quantity,
+        unitPrice,
         subtotal,
       };
     });
 
-    const order = await Order.create({
-      eventId: event._id,
-      buyerName: data.buyerName,
-      buyerEmail: data.buyerEmail,
-      buyerPhone: data.buyerPhone ?? "",
-      totalAmount,
-      paymentStatus: "pending",
-    });
+    const session = await mongoose.startSession();
+    session.startTransaction();
 
-    const orderItems = await OrderItem.insertMany(
-      orderItemsData.map((item) => ({
-        orderId: order._id,
-        ...item,
-      })),
-    );
+    try {
+      const order = new Order({
+        eventId: event._id,
+        buyerName,
+        buyerEmail,
+        ...(buyerPhone ? { buyerPhone } : {}),
+        totalAmount,
+        paymentStatus: "pending",
+      });
 
-    res.status(201).json({
-      status: "success",
-      data: {
-        organizer: {
-          slug: organizer.slug,
-          name: organizer.name,
+      await order.save({ session });
+
+      await OrderItem.insertMany(
+        orderItemsToCreate.map((item) => ({
+          ...item,
+          orderId: order._id,
+        })),
+        { session },
+      );
+
+      await session.commitTransaction();
+      session.endSession();
+
+      return res.status(201).json({
+        status: "success",
+        data: {
+          order: {
+            id: order._id,
+            eventId: order.eventId,
+            buyerName: order.buyerName,
+            buyerEmail: order.buyerEmail,
+            buyerPhone: order.buyerPhone,
+            totalAmount: order.totalAmount,
+            paymentStatus: order.paymentStatus,
+            paymentReference: order.paymentReference,
+          },
+          items: orderItemsToCreate.map((item) => ({
+            ticketTypeId: item.ticketTypeId,
+            ticketTypeName: item.ticketTypeName,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            subtotal: item.subtotal,
+          })),
         },
-        event: {
-          id: event._id,
-          title: event.title,
-        },
-        order,
-        orderItems,
-      },
-    });
+      });
+    } catch (error) {
+      await session.abortTransaction();
+      session.endSession();
+      throw error;
+    }
   },
 );

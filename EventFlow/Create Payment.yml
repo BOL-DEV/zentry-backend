@@ -1,0 +1,35 @@
+info:
+  name: Create Payment
+  type: http
+  seq: 13
+
+http:
+  method: POST
+  url: 127.0.0.1:4000/api/v1/orders/69c56328309990c21949b1a5/pay
+  body:
+    type: json
+    data: |-
+      {
+        "status": "success",
+        "data": {
+          "order": {
+            "id": "66c1f4f23ab56d7a89123456",
+            "buyerName": "Bol",
+            "buyerEmail": "bol@email.com",
+            "totalAmount": 25000,
+            "paymentStatus": "pending",
+            "paymentReference": "ORD-ABC123XYZ789"
+          },
+          "payment": {
+            "provider": "mock",
+            "paymentUrl": "https://mock-payment-link.com/pay/ORD-ABC123XYZ789"
+          }
+        }
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
