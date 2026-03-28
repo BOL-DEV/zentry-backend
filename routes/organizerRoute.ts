@@ -13,6 +13,7 @@ import { checkEventBelongToOrganizer } from "../middlewares/checkEventBelongToOr
 import {
   createEvent,
   getOrganizerEvents,
+  getOrganizerLandingEvents,
   getEventById,
 } from "../controllers/eventController";
 
@@ -37,6 +38,10 @@ router
   .route("/:slug/events")
   .post(checkOrganizerExist, createEvent)
   .get(checkOrganizerExist, getOrganizerEvents);
+
+router
+  .route("/:slug/landing-events")
+  .get(checkOrganizerExist, getOrganizerLandingEvents);
 
 router
   .route("/:slug/events/:eventId")

@@ -9,6 +9,8 @@ export const createOrganizerSchema = z.object({
 
   logoUrl: z.url("Logo URL must be a valid URL"),
 
+  bannerUrl: z.url("Banner URL must be a valid URL"),
+
   heroTitle: z
     .string()
     .trim()
@@ -26,6 +28,8 @@ export const createOrganizerSchema = z.object({
   contactPhone: z
     .string()
     .min(7, "Contact phone must be at least 7 characters"),
+
+  location: z.string().trim().min(2, "Location is required"),
 
   paystackSubaccountCode: z
     .string()

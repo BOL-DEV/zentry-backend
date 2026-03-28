@@ -20,6 +20,11 @@ const organizerSchema = new Schema(
       required: [true, "Organizer logo is required"],
       trim: true,
     },
+    bannerUrl: {
+      type: String,
+      required: [true, "Organizer banner is required"],
+      trim: true,
+    },
     heroTitle: {
       type: String,
       required: [true, "Organizer hero title is required"],
@@ -44,6 +49,11 @@ const organizerSchema = new Schema(
     contactPhone: {
       type: String,
       required: [true, "Organizer contact phone is required"],
+      trim: true,
+    },
+    location: {
+      type: String,
+      required: [true, "Organizer location is required"],
       trim: true,
     },
     paystackSubaccountCode: {
