@@ -1,5 +1,5 @@
-import {nanoid} from "nanoid"
+import crypto from "crypto";
 
 export const generatePaymentReference = (): string => {
-    return `ORD-${nanoid(12).toUpperCase()}`;
-}
+  return `ORD-${crypto.randomBytes(6).toString("hex").toUpperCase()}`;
+};
