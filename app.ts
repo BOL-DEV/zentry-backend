@@ -26,13 +26,13 @@ app.use(
   }),
 );
 
+app.use("/api/v1/organizer/dashboard", organizerDashboardRoute);
 app.use("/api/v1/organizer", organizerRoute);
 app.use("/api/v1/events", eventsRoute);
 app.use("/api/v1/orders", orderRoute);
 app.use("/api/v1/payments", paymentRoute);
 // app.use("/api/v1/tickets", ticketRoute);
 app.use("/api/v1/auth", authRoute);
-app.use("/api/v1/organizer/dashboard", organizerDashboardRoute);
 
 
 app.get("/", (_req, res) => {
