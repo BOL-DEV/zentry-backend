@@ -5,7 +5,7 @@ info:
 
 http:
   method: GET
-  url: 127.0.0.1:4000/api/v1/organizer/pulse-events/events/69c31bf7028f9a474bdcda17/ticket-types
+  url: 127.0.0.1:4000/api/v1/organizer/pulse-events/events/69c7fac691ca9168a2eade77/ticket-types
   auth: inherit
 
 settings:

@@ -12,13 +12,31 @@ const clientOptions = {
   serverApi: { version: "1", strict: true, deprecationErrors: true },
 };
 
+let connectionPromise: Promise<typeof mongoose> | null = null;
+
 const connectDB = async () => {
+  if (mongoose.connection.readyState === 1) {
+    return mongoose;
+  }
+
+  if (connectionPromise) {
+    return connectionPromise;
+  }
+
   try {
-    await mongoose.connect(DB as string, clientOptions as ConnectOptions);
+    connectionPromise = mongoose.connect(
+      DB as string,
+      clientOptions as ConnectOptions,
+    );
+
+    await connectionPromise;
     await mongoose.connection.db?.admin().ping();
     console.log("Database connection successful");
+
+    return mongoose;
   } catch (error) {
     console.error("Database connection error:", error);
+    connectionPromise = null;
     await mongoose.disconnect();
     process.exit(1);
   }

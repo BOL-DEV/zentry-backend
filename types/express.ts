@@ -1,23 +1,29 @@
-import type { Types } from "mongoose";
+import { Types } from "mongoose";
 
 declare global {
   namespace Express {
     interface Request {
-      rawBody?: Buffer;
       organizer?: {
         _id: Types.ObjectId;
         slug: string;
-        name?: string;
+        name: string;
       };
       event?: {
         _id: Types.ObjectId;
         organizerId: Types.ObjectId;
-        title?: string;
+        title: string;
       };
+      user?: {
+        _id: Types.ObjectId;
+        organizerId: Types.ObjectId;
+        fullName: string;
+        email: string;
+        role: "organizer" | "staff";
+        isActive: boolean;
+      };
+      rawBody?: Buffer;
     }
   }
 }
-
-////hiiii
 
 export {};

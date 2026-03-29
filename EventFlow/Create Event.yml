@@ -10,11 +10,11 @@ http:
     type: json
     data: |-
       {
-        "title": "Lagos Tech ",
+        "title": "Block Party",
         "description": "A major gathering for developers and founders in Lagos.",
-        "date": "2026-08-14T10:00:00.000Z",
+        "date": "2026-08-17T10:00:00.000Z",
         "location": "Eko Convention Center",
-        "posterUrl": "https://example.com/poster.jpg",
+        "posterUrl": "https://www.cvent.com/sites/default/files/image/2023-11/Business_Travel_Trends_Bleisure_Event-Cvent_CONNECT_2023.jpg",
         "dressCode": "Smart casual",
         "policies": "No refunds after purchase."
       }
