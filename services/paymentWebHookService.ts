@@ -10,6 +10,8 @@ import Ticket from "../models/ticket";
 import { AppError } from "../utils/appError";
 import { catchAsync } from "../utils/catchAsync";
 import { generateTicketCode } from "../utils/generateTicketCode";
+import { sendEmail } from "../utils/email";
+import { generateTicketEmailTemplate } from "../utils/ticketEmailTemplate";
 
 export const handlePaystackWebhook = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
@@ -29,10 +31,7 @@ export const handlePaystackWebhook = catchAsync(
 
     if (!rawBody) {
       return next(
-        new AppError(
-          "Missing raw request body for webhook verification",
-          400,
-        ),
+        new AppError("Missing raw request body for webhook verification", 400),
       );
     }
 
@@ -195,7 +194,9 @@ export const handlePaystackWebhook = catchAsync(
         }
       }
 
-      await Ticket.insertMany(ticketsToCreate, { session });
+      const createdTickets = await Ticket.insertMany(ticketsToCreate, {
+        session,
+      });
 
       for (const item of orderItems) {
         await TicketType.updateOne(
@@ -210,6 +211,35 @@ export const handlePaystackWebhook = catchAsync(
 
       await session.commitTransaction();
       session.endSession();
+
+      const ticketTypeNameMap = new Map(
+        orderItems.map((item) => [
+          item.ticketTypeId.toString(),
+          item.ticketTypeName,
+        ]),
+      );
+
+      const emailHtml = generateTicketEmailTemplate({
+        buyerName: order.buyerName,
+        eventTitle: event.title,
+        tickets: createdTickets.map((ticket) => ({
+          ticketCode: ticket.ticketCode,
+          ticketTypeName: ticketTypeNameMap.get(ticket.ticketTypeId.toString()),
+        })),
+      });
+
+      try {
+        await sendEmail({
+          to: order.buyerEmail,
+          subject: `Your tickets for ${event.title}`,
+          html: emailHtml,
+          text: `Your payment was successful. Your ticket codes: ${createdTickets
+            .map((ticket) => ticket.ticketCode)
+            .join(", ")}`,
+        });
+      } catch (emailError) {
+        console.error("Failed to send ticket email:", emailError);
+      }
 
       return res.status(200).json({
         status: "success",

@@ -2,7 +2,7 @@ import crypto from "crypto";
 
 export const generateTicketCode = (eventTitle: string): string => {
   const prefix = eventTitle
-    .trim()
+    .trim() 
     .toUpperCase()
     .replace(/[^A-Z0-9\s]/g, "")
     .split(/\s+/)

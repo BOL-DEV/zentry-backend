@@ -10,13 +10,16 @@ http:
     type: json
     data: |-
       {
-        "name":"boldev-events",
-        "logoUrl":"http://localhost:3000/_next/image?url=https%3A%2F%2Fv0-event-web-app-prototype.vercel.app%2Fnetworking-event-elegant-venue.jpg&w=828&q=75",
-        "heroTitle":"jashjkdjkanj jsskhasjdhjhghafssgcfgscg jsjhdgfdghsfhsgajjldjksd sjgjhdgghasfkjdsjdjhghjdfghd kdhjjhjhd",
-        "heroSubtitle":"sdjbjbdxnxhssABDDBB",
-        "about":"Yoo whatsuppp.......",
-        "contactEmail":"abahjhjsjj@mail.com",
-        "contactPhone": "0987652767"
+        "name": "Pulse-Events",
+        "logoUrl": "https://img.freepik.com/premium-vector/event-organizing-logo-festival-entertainment-vector-design-template_214369-1260.jpg?semt=ais_incoming&w=740&q=80",
+        "heroTitle": "Creating unforgettable experiences",
+        "heroSubtitle": "We host community-first events designed to connect people, spotlight great ideas, and create moments worth remembering. Expect thoughtful venues, clear schedules, and a welcoming atmosphere for everyone.",
+        "about": "We host community-first events designed to connect people, spotlight great ideas, and create moments worth remembering. Expect thoughtful venues, clear schedules, and a welcoming atmosphere for everyone. We care about the details that make events feel premium: clear communication, friendly onboarding, and a smooth on-site flow. If you’re attending, expect a well-structured schedule and a comfortable venue. If you’re partnering, expect fast replies and clean deliverables.",
+        "contactEmail": "hello@pulse-events.com",
+        "contactPhone": "09876527670",
+        "location": "Epe Lasu",
+        "bannerUrl": "https://eventflow-lac.vercel.app/_next/image?url=https%3A%2F%2Fv0-event-web-app-prototype.vercel.app%2Fnetworking-event-elegant-venue.jpg&w=1200&q=75",
+        "paystackSubaccountCode": "ACCT_w49doe2h1aj44iv"
       }
   auth: inherit
 
