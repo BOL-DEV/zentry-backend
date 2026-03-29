@@ -219,13 +219,27 @@ export const handlePaystackWebhook = catchAsync(
         ]),
       );
 
+      const ticketEmailItems = createdTickets.map((ticket) => {
+        const ticketTypeName = ticketTypeNameMap.get(
+          ticket.ticketTypeId.toString(),
+        );
+
+        if (ticketTypeName) {
+          return {
+            ticketCode: ticket.ticketCode,
+            ticketTypeName,
+          };
+        }
+
+        return {
+          ticketCode: ticket.ticketCode,
+        };
+      });
+
       const emailHtml = generateTicketEmailTemplate({
         buyerName: order.buyerName,
         eventTitle: event.title,
-        tickets: createdTickets.map((ticket) => ({
-          ticketCode: ticket.ticketCode,
-          ticketTypeName: ticketTypeNameMap.get(ticket.ticketTypeId.toString()),
-        })),
+        tickets: ticketEmailItems,
       });
 
       try {
