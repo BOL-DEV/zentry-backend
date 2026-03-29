@@ -2,9 +2,13 @@ import { Request, Response, NextFunction } from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import DashboardUser from "../models/dasboardUser";
+import Organizer from "../models/organizer";
 import { AppError } from "../utils/appError";
 import { catchAsync } from "../utils/catchAsync";
-import { loginSchema } from "../validations/auth.schema";
+import {
+  createDashboardUserSchema,
+  loginSchema,
+} from "../validations/auth.schema";
 
 const signToken = (id: string) => {
   return jwt.sign({ id }, process.env.JWT_SECRET as string, {
@@ -38,6 +42,45 @@ export const login = catchAsync(
           email: user.email,
           role: user.role,
           organizerId: user.organizerId,
+        },
+      },
+    });
+  },
+);
+
+export const createDashboardUser = catchAsync(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const { organizerId, fullName, email, password, role } =
+      createDashboardUserSchema.parse(req.body);
+
+    const organizerExists = await Organizer.exists({ _id: organizerId });
+    if (!organizerExists) {
+      return next(new AppError("Organizer not found", 404));
+    }
+
+    const existingUser = await DashboardUser.findOne({ email });
+    if (existingUser) {
+      return next(new AppError("A user with this email already exists", 400));
+    }
+
+    const user = await DashboardUser.create({
+      organizerId,
+      fullName,
+      email,
+      password,
+      role,
+    });
+
+    res.status(201).json({
+      status: "success",
+      data: {
+        user: {
+          id: user._id,
+          organizerId: user.organizerId,
+          fullName: user.fullName,
+          email: user.email,
+          role: user.role,
+          isActive: user.isActive,
         },
       },
     });
