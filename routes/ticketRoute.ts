@@ -1,8 +1,11 @@
-import { verifyTicket } from "../controllers/ticketController";
-import { Router } from "express";
+// import { Router } from "express";
+// import { verifyTicket } from "../controllers/ticketController";
+// import { protect, restrictTo } from "../middlewares/protect";
 
-const router = Router();
+// const router = Router();
 
-router.post("/verify", verifyTicket);
+// router.use(protect);
 
-export default router;
+// // router.route("/verify").post(restrictTo("organizer","staff"), verifyTicket);
+
+// export default router;

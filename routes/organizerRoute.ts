@@ -11,16 +11,12 @@ import { checkOrganizerExist } from "../middlewares/checkOrganizerExist";
 import { checkEventExist } from "../middlewares/checkEventExist";
 import { checkEventBelongToOrganizer } from "../middlewares/checkEventBelongToOrganizer";
 import {
-  createEvent,
   getOrganizerEvents,
   getOrganizerLandingEvents,
   getEventById,
 } from "../controllers/eventController";
 
-import {
-  createTicketType,
-  getEventTicketTypes,
-} from "../controllers/ticketTypeController";
+import { getEventTicketTypes } from "../controllers/ticketTypeController";
 
 import { createPurchase } from "../controllers/purchaseController";
 
@@ -36,7 +32,7 @@ router
 
 router
   .route("/:slug/events")
-  .post(checkOrganizerExist, createEvent)
+
   .get(checkOrganizerExist, getOrganizerEvents);
 
 router
@@ -54,12 +50,6 @@ router
 
 router
   .route("/:slug/events/:eventId/ticket-types")
-  .post(
-    checkOrganizerExist,
-    checkEventExist,
-    checkEventBelongToOrganizer,
-    createTicketType,
-  )
   .get(
     checkOrganizerExist,
     checkEventExist,

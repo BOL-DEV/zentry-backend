@@ -8,6 +8,7 @@ export interface ITicket extends Document {
   buyerEmail: string;
   ticketCode: string;
   status: "valid" | "checked-in";
+  createdAt: Date
 }
 
 const TicketSchema = new Schema(
@@ -60,7 +61,7 @@ const TicketSchema = new Schema(
   },
 );
 
-TicketSchema.index({ orderId: 1 });
+// TicketSchema.index({ orderId: 1 });
 TicketSchema.index({ eventId: 1, status: 1 });
 
 const Ticket = model<ITicket>("Ticket", TicketSchema);
