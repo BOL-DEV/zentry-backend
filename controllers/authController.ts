@@ -30,6 +30,12 @@ export const login = catchAsync(
       return next(new AppError("User account is disabled", 403));
     }
 
+    const organizer = await Organizer.findById(user.organizerId).select("slug");
+
+    if (!organizer) {
+      return next(new AppError("Organizer not found for this user", 404));
+    }
+
     const token = signToken(user._id.toString());
 
     res.status(200).json({
@@ -42,6 +48,7 @@ export const login = catchAsync(
           email: user.email,
           role: user.role,
           organizerId: user.organizerId,
+          organizerSlug: organizer.slug,
         },
       },
     });
@@ -54,11 +61,13 @@ export const createDashboardUser = catchAsync(
       createDashboardUserSchema.parse(req.body);
 
     const organizerExists = await Organizer.exists({ _id: organizerId });
+
     if (!organizerExists) {
       return next(new AppError("Organizer not found", 404));
     }
 
     const existingUser = await DashboardUser.findOne({ email });
+
     if (existingUser) {
       return next(new AppError("A user with this email already exists", 400));
     }
