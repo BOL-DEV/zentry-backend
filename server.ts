@@ -1,6 +1,5 @@
-import app from "./app";
+import app from "./api";
 import { createServer } from "http";
-
 
 const server = createServer(app);
 
