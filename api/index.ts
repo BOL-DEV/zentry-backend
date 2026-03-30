@@ -1,15 +1,15 @@
 import express, { type Request } from "express";
-import organizerRoute from "./routes/organizerRoute";
-import eventsRoute from "./routes/eventRoute";
-import orderRoute from "./routes/orderRoute";
-import paymentRoute from "./routes/paymentRoute";
+import organizerRoute from "../routes/organizerRoute";
+import eventsRoute from "../routes/eventRoute";
+import orderRoute from "../routes/orderRoute";
+import paymentRoute from "../routes/paymentRoute";
 // import ticketRoute from "./routes/ticketRoute";
-import authRoute from "./routes/authRoute";
-import organizerDashboardRoute from "./routes/organizerDashboardRoute";
+import authRoute from "../routes/authRoute";
+import organizerDashboardRoute from "../routes/organizerDashboardRoute";
 import morgan from "morgan";
-import { globalErrorHandler } from "./middlewares/errorMiddleware";
+import { globalErrorHandler } from "../middlewares/errorMiddleware";
 import cors from "cors";
-import connectDB from "./config/db";
+import connectDB from "../config/db";
 
 const app = express();
 

@@ -5,11 +5,13 @@
   "license": "ISC",
   "author": "",
   "type": "commonjs",
-  "main": "dist/app.js",
+  "main": "dist/server.js",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only server.ts",
     "build": "tsc",
-    "start": "tsx watch script.ts",
+    "start": "node dist/server.js",
+    "start:dev": "tsx watch server.ts",
+    "typecheck": "tsc --noEmit",
     "format": "prettier --write \"**/*.{ts,js,json}\"",
     "format:check": "prettier --check \"**/*.{ts,js,json}\""
   },
