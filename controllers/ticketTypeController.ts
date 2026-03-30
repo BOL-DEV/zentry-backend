@@ -5,7 +5,72 @@ import {
 import { TicketType } from "../models/ticketTypes";
 import { catchAsync } from "../utils/catchAsync";
 import { AppError } from "../utils/appError";
+import Event from "../models/event";
+import { eventIdParamSchema } from "../validations/event.schema";
 
+
+
+export const createTicketType = catchAsync(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const user = req.user;
+
+    if (!user) {
+      return next(new AppError("User not found", 401));
+    }
+
+    const { eventId } = eventIdParamSchema.parse(req.params);
+    const data = createTicketTypeSchema.parse(req.body);
+
+    const event = await Event.findOne({
+      _id: eventId,
+      organizerId: user.organizerId,
+    })
+      .select("_id title organizerId")
+      .lean();
+
+    if (!event) {
+      return next(new AppError("Event not found for this organizer", 404));
+    }
+
+    const normalizedName = data.name.trim().toUpperCase();
+
+    const existingTicketType = await TicketType.findOne({
+      eventId: event._id,
+      name: normalizedName,
+    }).lean();
+
+    if (existingTicketType) {
+      return next(
+        new AppError(
+          "Ticket type with this name already exists for this event",
+          400,
+        ),
+      );
+    }
+
+    const ticketType = await TicketType.create({
+      eventId: event._id,
+      name: normalizedName,
+      description: data.description ?? "",
+      price: data.price,
+      quantityAvailable: data.quantityAvailable,
+      displayOrder: data.displayOrder ?? 0,
+      isActive: true,
+      quantitySold: 0,
+    });
+
+    res.status(201).json({
+      status: "success",
+      data: {
+        event: {
+          id: event._id,
+          title: event.title,
+        },
+        ticketType,
+      },
+    });
+  },
+);
 
 export const getEventTicketTypes = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {

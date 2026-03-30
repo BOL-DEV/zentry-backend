@@ -3,10 +3,7 @@ import {
   createOrganizer,
   getOrganizerBySlug,
 } from "../controllers/organizerController";
-import {
-  createGalleryItems,
-  getGalleryItems,
-} from "../controllers/galleryController";
+import { getGalleryItems } from "../controllers/galleryController";
 import { checkOrganizerExist } from "../middlewares/checkOrganizerExist";
 import { checkEventExist } from "../middlewares/checkEventExist";
 import { checkEventBelongToOrganizer } from "../middlewares/checkEventBelongToOrganizer";
@@ -25,15 +22,9 @@ const router = Router();
 router.route("/").post(createOrganizer);
 router.route("/:slug").get(checkOrganizerExist, getOrganizerBySlug);
 
-router
-  .route("/:slug/gallery")
-  .post(checkOrganizerExist, createGalleryItems)
-  .get(checkOrganizerExist, getGalleryItems);
+router.route("/:slug/gallery").get(checkOrganizerExist, getGalleryItems);
 
-router
-  .route("/:slug/events")
-
-  .get(checkOrganizerExist, getOrganizerEvents);
+router.route("/:slug/events").get(checkOrganizerExist, getOrganizerEvents);
 
 router
   .route("/:slug/landing-events")
