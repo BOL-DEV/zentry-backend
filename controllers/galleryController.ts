@@ -1,42 +1,52 @@
+import { Request, Response, NextFunction } from "express";
 import { catchAsync } from "../utils/catchAsync";
 import { createGalleryItemSchema } from "../validations/gallery.schema";
 import { AppError } from "../utils/appError";
 import Gallery from "../models/gallery";
 
-export const createGalleryItems = catchAsync(async (req, res, next) => {
-  const data = createGalleryItemSchema.parse(req.body);
-  const organizer = req.organizer;
 
-  if (!organizer) {
-    return next(new AppError("Organizer not found", 404));
-  }
 
-  const existingGalleryItem = await Gallery.findOne({
-    organizerId: organizer._id,
-    imageUrl: data.imageUrl,
-  }).lean();
 
-  if (existingGalleryItem) {
-    return next(
-      new AppError("This gallery image already exists for this organizer", 400),
-    );
-  }
+export const createGalleryItem = catchAsync(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const user = req.user;
 
-  const galleryItem = await Gallery.create({
-    organizerId: organizer._id,
-    imageUrl: data.imageUrl,
-    caption: data.caption || "",
-    altText: data.altText || "",
-    displayOrder: data.displayOrder || 0,
-  });
+    if (!user) {
+      return next(new AppError("User not found", 401));
+    }
 
-  res.status(201).json({
-    status: "success",
-    data: {
-      galleryItem,
-    },
-  });
-});
+    const data = createGalleryItemSchema.parse(req.body);
+
+    const existingGalleryItem = await Gallery.findOne({
+      organizerId: user.organizerId,
+      imageUrl: data.imageUrl,
+    }).lean();
+
+    if (existingGalleryItem) {
+      return next(
+        new AppError(
+          "This gallery image already exists for this organizer",
+          400,
+        ),
+      );
+    }
+
+    const galleryItem = await Gallery.create({
+      organizerId: user.organizerId,
+      imageUrl: data.imageUrl,
+      caption: data.caption || "",
+      altText: data.altText || "",
+      displayOrder: data.displayOrder || 0,
+    });
+
+    res.status(201).json({
+      status: "success",
+      data: {
+        galleryItem,
+      },
+    });
+  },
+);
 
 export const getGalleryItems = catchAsync(async (req, res, next) => {
   const organizer = req.organizer;

@@ -5,6 +5,51 @@ import { AppError } from "../utils/appError";
 import { Request, Response, NextFunction } from "express";
 
 
+
+
+
+export const createEvent = catchAsync(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const user = req.user;
+
+    if (!user) {
+      return next(new AppError("User not found", 401));
+    }
+
+    const data = createEventSchema.parse(req.body);
+    const organizerId = user.organizerId;
+    const eventDate = new Date(data.date);
+
+    const existingEvent = await Event.findOne({
+      organizerId,
+      title: data.title,
+      date: eventDate,
+    }).lean();
+
+    if (existingEvent) {
+      return next(
+        new AppError(
+          "An event with this title and date already exists for this organizer",
+          400,
+        ),
+      );
+    }
+
+    const event = await Event.create({
+      ...data,
+      date: eventDate,
+      organizerId,
+    });
+
+    res.status(201).json({
+      status: "success",
+      data: {
+        event,
+      },
+    });
+  },
+);
+
 export const getOrganizerEvents = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
     const organizer = req.organizer;

@@ -5,10 +5,9 @@ import {
   getEventAttendees,
   getScannerSummary,
 } from "../controllers/organizerDashboardController";
-import {
-  createEvent,
-  createTicketType,
-} from "../controllers/organizerDashboardController";
+import { createGalleryItem } from "../controllers/galleryController";
+import { createEvent } from "../controllers/eventController";
+import { createTicketType } from "../controllers/ticketTypeController";
 import { verifyTicketForEvent } from "../controllers/ticketController";
 import { protect, restrictTo } from "../middlewares/protect";
 
@@ -25,6 +24,8 @@ router
   .get(restrictTo("organizer"), getOrganizerEventStats)
   .post(restrictTo("organizer"), createEvent);
 
+router.route("/gallery").post(restrictTo("organizer"), createGalleryItem);
+
 router
   .route("/events/:eventId/ticket-types")
   .post(restrictTo("organizer"), createTicketType);
@@ -38,7 +39,7 @@ router
   .get(restrictTo("organizer", "staff"), getScannerSummary);
 
 router
-  .route("/events/:eventId/verify-ticket")  
+  .route("/events/:eventId/verify-ticket")
   .post(restrictTo("organizer", "staff"), verifyTicketForEvent);
 
 export default router;
