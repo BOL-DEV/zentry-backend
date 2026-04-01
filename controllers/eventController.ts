@@ -4,9 +4,14 @@ import { catchAsync } from "../utils/catchAsync";
 import { AppError } from "../utils/appError";
 import { Request, Response, NextFunction } from "express";
 
+type PopulatedOrganizerRef = {
+  slug?: string;
+} | null;
 
-
-
+type EventWithPopulatedOrganizer = {
+  _id: unknown;
+  organizerId?: PopulatedOrganizerRef;
+};
 
 export const createEvent = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
@@ -135,7 +140,11 @@ export const getOrganizerLandingEvents = catchAsync(
 
 export const getAllEvents = catchAsync(
   async (_req: Request, res: Response, _next: NextFunction) => {
-    const events = await Event.find().sort({ date: 1, createdAt: -1 });
+    const events = (await Event.find()
+      .populate("organizerId", "slug")
+      .sort({ date: 1, createdAt: -1 })
+      .lean()) as EventWithPopulatedOrganizer[];
+
     res.status(200).json({
       status: "success",
       results: events.length,
