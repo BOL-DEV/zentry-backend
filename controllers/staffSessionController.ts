@@ -1,0 +1,104 @@
+import { Request, Response, NextFunction } from "express";
+import DashboardUser from "../models/dasboardUser";
+import UserSession from "../models/userSession";
+import { AppError } from "../utils/appError";
+import { catchAsync } from "../utils/catchAsync";
+import {
+  logoutOneStaffSessionParamsSchema,
+  staffSessionParamsSchema,
+} from "../validations/staffSession.schema";
+
+export const getStaffSessions = catchAsync(
+  async (req: any, res: Response, next: NextFunction) => {
+    const { staffId } = staffSessionParamsSchema.parse(req.params);
+
+    const staffUser = await DashboardUser.findOne({
+      _id: staffId,
+      organizerId: req.user.organizerId,
+      role: "staff",
+    });
+
+    if (!staffUser) {
+      return next(new AppError("Staff user not found", 404));
+    }
+
+    const sessions = await UserSession.find({
+      userId: staffUser._id,
+      isActive: true,
+    }).sort({ createdAt: -1 });
+
+    res.status(200).json({
+      status: "success",
+      results: sessions.length,
+      data: {
+        sessions,
+      },
+    });
+  },
+);
+
+export const logoutOneStaffSession = catchAsync(
+  async (req: any, res: Response, next: NextFunction) => {
+    const { staffId, sessionId } =
+      logoutOneStaffSessionParamsSchema.parse(req.params);
+
+    const staffUser = await DashboardUser.findOne({
+      _id: staffId,
+      organizerId: req.user.organizerId,
+      role: "staff",
+    });
+
+    if (!staffUser) {
+      return next(new AppError("Staff user not found", 404));
+    }
+
+    const session = await UserSession.findOne({
+      _id: sessionId,
+      userId: staffUser._id,
+      isActive: true,
+    });
+
+    if (!session) {
+      return next(new AppError("Active session not found", 404));
+    }
+
+    session.isActive = false;
+    await session.save();
+
+    res.status(200).json({
+      status: "success",
+      message: "Staff session logged out successfully",
+    });
+  },
+);
+
+export const logoutAllStaffSessions = catchAsync(
+  async (req: any, res: Response, next: NextFunction) => {
+    const { staffId } = staffSessionParamsSchema.parse(req.params);
+
+    const staffUser = await DashboardUser.findOne({
+      _id: staffId,
+      organizerId: req.user.organizerId,
+      role: "staff",
+    });
+
+    if (!staffUser) {
+      return next(new AppError("Staff user not found", 404));
+    }
+
+    await UserSession.updateMany(
+      {
+        userId: staffUser._id,
+        isActive: true,
+      },
+      {
+        isActive: false,
+      },
+    );
+
+    res.status(200).json({
+      status: "success",
+      message: "All staff sessions logged out successfully",
+    });
+  },
+);

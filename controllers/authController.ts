@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import DashboardUser from "../models/dasboardUser";
 import Organizer from "../models/organizer";
+import UserSession from "../models/userSession";
 import { AppError } from "../utils/appError";
 import { catchAsync } from "../utils/catchAsync";
 import {
@@ -10,9 +11,16 @@ import {
   loginSchema,
 } from "../validations/auth.schema";
 
-const signToken = (id: string) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET as string, {
-    expiresIn: "7d",
+type SignTokenPayload = {
+  id: string;
+  role: "organizer" | "staff";
+  organizerId: string;
+  sessionId: string;
+};
+
+const signToken = (payload: SignTokenPayload) => {
+  return jwt.sign(payload, process.env.JWT_SECRET as string, {
+    expiresIn: "2d",
   });
 };
 
@@ -30,13 +38,52 @@ export const login = catchAsync(
       return next(new AppError("User account is disabled", 403));
     }
 
+    if (user.role === "organizer") {
+      await UserSession.updateMany(
+        { userId: user._id, isActive: true },
+        { isActive: false },
+      );
+    }
+
+    if (user.role === "staff") {
+      const activeSessionsCount = await UserSession.countDocuments({
+        userId: user._id,
+        isActive: true,
+      });
+
+      if (activeSessionsCount >= 3) {
+        return next(
+          new AppError(
+            "Maximum of 3 devices allowed. Log out from one device first.",
+            403,
+          ),
+        );
+      }
+    }
+
     const organizer = await Organizer.findById(user.organizerId).select("slug");
 
     if (!organizer) {
       return next(new AppError("Organizer not found for this user", 404));
     }
 
-    const token = signToken(user._id.toString());
+    const session = await UserSession.create({
+      userId: user._id,
+      organizerId: user.organizerId,
+      role: user.role,
+      userAgent: req.get("user-agent") || "",
+      ipAddress: req.ip || req.socket.remoteAddress || "",
+      deviceName:
+        typeof req.body.deviceName === "string" ? req.body.deviceName : "",
+      lastSeenAt: new Date(),
+    });
+
+    const token = signToken({
+      id: user._id.toString(),
+      role: user.role,
+      organizerId: user.organizerId.toString(),
+      sessionId: session._id.toString(),
+    });
 
     res.status(200).json({
       status: "success",
@@ -49,6 +96,11 @@ export const login = catchAsync(
           role: user.role,
           organizerId: user.organizerId,
           organizerSlug: organizer.slug,
+        },
+        session: {
+          id: session._id,
+          deviceName: session.deviceName,
+          userAgent: session.userAgent,
         },
       },
     });
@@ -92,6 +144,22 @@ export const createDashboardUser = catchAsync(
           isActive: user.isActive,
         },
       },
+    });
+  },
+);
+
+export const logout = catchAsync(
+  async (req: any, res: Response, next: NextFunction) => {
+    if (!req.session) {
+      return next(new AppError("No active session found", 401));
+    }
+
+    req.session.isActive = false;
+    await req.session.save();
+
+    res.status(200).json({
+      status: "success",
+      message: "Logged out successfully",
     });
   },
 );
