@@ -1,4 +1,6 @@
 import { Types } from "mongoose";
+import { IDashboardUser } from "../models/dasboardUser";
+import { IUserSession } from "../models/userSession";
 
 declare global {
   namespace Express {
@@ -13,14 +15,8 @@ declare global {
         organizerId: Types.ObjectId;
         title: string;
       };
-      user?: {
-        _id: Types.ObjectId;
-        organizerId: Types.ObjectId;
-        fullName: string;
-        email: string;
-        role: "organizer" | "staff";
-        isActive: boolean;
-      };
+      user?: IDashboardUser;
+      session?: IUserSession;
       rawBody?: Buffer;
     }
   }

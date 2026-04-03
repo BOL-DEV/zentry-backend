@@ -1,5 +1,5 @@
 import { Schema, model, Document, Types } from "mongoose";
-import { hash } from "bcryptjs";
+import { hash, compare } from "bcryptjs";
 
 export interface IDashboardUser extends Document {
   organizerId: Types.ObjectId;
@@ -8,6 +8,7 @@ export interface IDashboardUser extends Document {
   password: string;
   role: "organizer" | "staff";
   isActive: boolean;
+  comparePassword(candidatePassword: string): Promise<boolean>;
 }
 
 const dashboardUserSchema = new Schema<IDashboardUser>(
@@ -55,6 +56,12 @@ dashboardUserSchema.pre("save", async function () {
   if (!this.isModified("password")) return;
   this.password = await hash(this.password, 12);
 });
+
+dashboardUserSchema.methods.comparePassword = async function (
+  candidatePassword: string,
+) {
+  return compare(candidatePassword, this.password);
+};
 
 const DashboardUser = model<IDashboardUser>(
   "DashboardUser",
