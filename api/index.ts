@@ -3,6 +3,7 @@ import organizerRoute from "../routes/organizerRoute";
 import eventsRoute from "../routes/eventRoute";
 import orderRoute from "../routes/orderRoute";
 import paymentRoute from "../routes/paymentRoute";
+import adminAuthRoute from "../routes/adminAuthRoute";
 // import ticketRoute from "./routes/ticketRoute";
 import authRoute from "../routes/authRoute";
 import organizerDashboardRoute from "../routes/organizerDashboardRoute";
@@ -33,6 +34,7 @@ app.use("/api/v1/orders", orderRoute);
 app.use("/api/v1/payments", paymentRoute);
 // app.use("/api/v1/tickets", ticketRoute);
 app.use("/api/v1/auth", authRoute);
+app.use("/api/v1/admin/auth", adminAuthRoute);
 
 
 app.get("/", (_req, res) => {
