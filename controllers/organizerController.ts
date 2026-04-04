@@ -1,7 +1,8 @@
 import { Request, Response, NextFunction } from "express";
 import Organizer from "../models/organizer";
 import { catchAsync } from "../utils/catchAsync";
-import { createOrganizerSchema, organizerSlugParamSchema } from "../validations/organizer.schema";
+import { createOrganizerSchema } from "../validations/organizer.schema";
+import { syncPaystackSettlements } from "../services/syncPaystackSettlement";
 import { generateSlug } from "../utils/slugify";
 import { AppError } from "../utils/appError";
 
@@ -39,7 +40,9 @@ export const getOrganizerBySlug = catchAsync(
       return next(new AppError("Organizer not found", 404));
     }
 
-    const organizer = await Organizer.findById(organizerId);
+    const organizer = await Organizer.findById(organizerId).select(
+      "-paystackSubaccountCode",
+    );
 
     if (!organizer) {
       return next(new AppError("Organizer not found", 404));
@@ -49,6 +52,52 @@ export const getOrganizerBySlug = catchAsync(
       status: "success",
       data: {
         organizer,
+      },
+    });
+  },
+);
+
+export const syncOrganizerSettlements = catchAsync(
+  async (req: Request, res: Response, next: NextFunction) => {
+    if (!req.user) {
+      return next(new AppError("You are not logged in", 401));
+    }
+
+    const organizer = await Organizer.findById(req.user.organizerId).select(
+      "name paystackSubaccountCode",
+    );
+
+    if (!organizer) {
+      return next(new AppError("Organizer not found", 404));
+    }
+
+    if (!organizer.paystackSubaccountCode) {
+      return next(
+        new AppError(
+          "Organizer does not have a Paystack subaccount configured",
+          400,
+        ),
+      );
+    }
+
+    const now = new Date();
+    const from = new Date(now);
+    from.setDate(from.getDate() - 7);
+
+    const result = await syncPaystackSettlements({
+      from,
+      to: now,
+      subaccount: organizer.paystackSubaccountCode,
+    });
+
+    res.status(200).json({
+      status: "success",
+      data: {
+        organizer: {
+          id: organizer._id,
+          name: organizer.name,
+        },
+        sync: result,
       },
     });
   },

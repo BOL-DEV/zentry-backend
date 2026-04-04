@@ -1,3 +1,4 @@
+import { Types } from "mongoose";
 import { Request, Response, NextFunction } from "express";
 import Event from "../models/event";
 import Order from "../models/order";
@@ -6,8 +7,6 @@ import { TicketType } from "../models/ticketTypes";
 import { eventIdParamSchema } from "../validations/event.schema";
 import { AppError } from "../utils/appError";
 import { catchAsync } from "../utils/catchAsync";
-
-
 
 export const getOrganizerDashboardSummary = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
@@ -180,56 +179,405 @@ export const getEventAttendees = catchAsync(
 );
 
 export const getScannerSummary = catchAsync(
-    async (req: Request, res: Response, next: NextFunction) => {
-      const user = req.user;
-  
-      if (!user) {
-        return next(new AppError("User not found", 401));
-      }
-  
-      const { eventId } = eventIdParamSchema.parse(req.params);
-  
-      const event = await Event.findOne({
-        _id: eventId,
-        organizerId: user.organizerId,
-      })
-        .select("_id title date location")
-        .lean();
-  
-      if (!event) {
-        return next(new AppError("Event not found for this organizer", 404));
-      }
-  
-      const totalTicketsSold = await Ticket.countDocuments({
-        eventId: event._id,
-      });
-  
-      const totalCheckedIn = await Ticket.countDocuments({
-        eventId: event._id,
-        status: "checked-in",
-      });
-  
-      const checkInPercentage =
-        totalTicketsSold === 0
-          ? 0
-          : Number(((totalCheckedIn / totalTicketsSold) * 100).toFixed(2));
-  
-      res.status(200).json({
+  async (req: Request, res: Response, next: NextFunction) => {
+    const user = req.user;
+
+    if (!user) {
+      return next(new AppError("User not found", 401));
+    }
+
+    const { eventId } = eventIdParamSchema.parse(req.params);
+
+    const event = await Event.findOne({
+      _id: eventId,
+      organizerId: user.organizerId,
+    })
+      .select("_id title date location")
+      .lean();
+
+    if (!event) {
+      return next(new AppError("Event not found for this organizer", 404));
+    }
+
+    const totalTicketsSold = await Ticket.countDocuments({
+      eventId: event._id,
+    });
+
+    const totalCheckedIn = await Ticket.countDocuments({
+      eventId: event._id,
+      status: "checked-in",
+    });
+
+    const checkInPercentage =
+      totalTicketsSold === 0
+        ? 0
+        : Number(((totalCheckedIn / totalTicketsSold) * 100).toFixed(2));
+
+    res.status(200).json({
+      status: "success",
+      data: {
+        event: {
+          id: event._id,
+          title: event.title,
+          date: event.date,
+          location: event.location,
+        },
+        scannerSummary: {
+          totalTicketsSold,
+          totalCheckedIn,
+          totalUnchecked: totalTicketsSold - totalCheckedIn,
+          checkInPercentage,
+        },
+      },
+    });
+  },
+);
+
+export const getEventSettlementSummary = catchAsync(
+  async (req: Request, res: Response, next: NextFunction) => {
+    if (!req.user) {
+      return next(new AppError("You are not logged in", 401));
+    }
+
+    const { eventId } = eventIdParamSchema.parse(req.params);
+
+    if (!Types.ObjectId.isValid(eventId)) {
+      return next(new AppError("Invalid event ID", 400));
+    }
+
+    const event = await Event.findOne({
+      _id: eventId,
+      organizerId: req.user.organizerId,
+    }).select("title date location organizerId");
+
+    if (!event) {
+      return next(new AppError("Event not found", 404));
+    }
+
+    const summaryAgg = await Order.aggregate([
+      {
+        $match: {
+          eventId: event._id,
+          paymentStatus: "paid",
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          confirmedSales: { $sum: "$totalAmount" },
+          platformFees: { $sum: "$platformFeeTotal" },
+          paystackFees: { $sum: "$paystackFeeTotal" },
+          expectedNetSettlement: { $sum: "$expectedNetSettlement" },
+          totalPaidOrders: { $sum: 1 },
+
+          pendingSettlement: {
+            $sum: {
+              $cond: [
+                { $in: ["$settlementStatus", ["pending", "processing"]] },
+                "$expectedNetSettlement",
+                0,
+              ],
+            },
+          },
+
+          settled: {
+            $sum: {
+              $cond: [
+                { $eq: ["$settlementStatus", "settled"] },
+                "$expectedNetSettlement",
+                0,
+              ],
+            },
+          },
+        },
+      },
+    ]);
+
+    const summary = summaryAgg[0] || {
+      confirmedSales: 0,
+      pendingSettlement: 0,
+      settled: 0,
+      platformFees: 0,
+      paystackFees: 0,
+      expectedNetSettlement: 0,
+      totalPaidOrders: 0,
+    };
+
+    // Pagination
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const perPage = Math.max(
+      1,
+      Math.min(100, parseInt(req.query.perPage as string) || 20),
+    );
+    const skip = (page - 1) * perPage;
+
+    const totalOrders = await Order.countDocuments({
+      eventId: event._id,
+      paymentStatus: "paid",
+    });
+
+    const orders = await Order.find({
+      eventId: event._id,
+      paymentStatus: "paid",
+    })
+      .select(
+        "buyerName buyerEmail paymentReference totalAmount platformFeeTotal paystackFeeTotal expectedNetSettlement settlementStatus paidAt settlementDate",
+      )
+      .sort({ paidAt: -1, createdAt: -1 })
+      .skip(skip)
+      .limit(perPage)
+      .lean();
+
+    const totalPages = Math.ceil(totalOrders / perPage);
+
+    res.status(200).json({
+      status: "success",
+      data: {
+        event: {
+          id: event._id,
+          title: event.title,
+          date: event.date,
+          location: event.location,
+        },
+        summary,
+        pagination: {
+          page,
+          perPage,
+          totalOrders,
+          totalPages,
+        },
+        orders: orders.map((order) => ({
+          id: order._id,
+          buyerName: order.buyerName,
+          buyerEmail: order.buyerEmail,
+          paymentReference: order.paymentReference,
+          grossAmount: order.totalAmount,
+          platformFeeTotal: order.platformFeeTotal,
+          paystackFeeTotal: order.paystackFeeTotal,
+          expectedNetSettlement: order.expectedNetSettlement,
+          settlementStatus: order.settlementStatus,
+          paidAt: order.paidAt,
+          settlementDate: order.settlementDate,
+        })),
+      },
+    });
+  },
+);
+
+export const getOrganizerSettlementSummary = catchAsync(
+  async (req: Request, res: Response, next: NextFunction) => {
+    if (!req.user) {
+      return next(new AppError("You are not logged in", 401));
+    }
+
+    const organizerId = req.user.organizerId;
+
+    const organizerEvents = await Event.find({
+      organizerId,
+    })
+      .select("_id title date location")
+      .lean();
+
+    const eventIds = organizerEvents.map((event) => event._id);
+
+    if (!eventIds.length) {
+      return res.status(200).json({
         status: "success",
         data: {
-          event: {
-            id: event._id,
-            title: event.title,
-            date: event.date,
-            location: event.location,
+          summary: {
+            confirmedSales: 0,
+            pendingSettlement: 0,
+            settled: 0,
+            platformFees: 0,
+            paystackFees: 0,
+            expectedNetSettlement: 0,
+            totalPaidOrders: 0,
+            totalEventsWithSales: 0,
           },
-          scannerSummary: {
-            totalTicketsSold,
-            totalCheckedIn,
-            totalUnchecked: totalTicketsSold - totalCheckedIn,
-            checkInPercentage,
-          },
+          events: [],
+          recentOrders: [],
         },
       });
     }
-  );
+
+    const summaryAgg = await Order.aggregate([
+      {
+        $match: {
+          eventId: { $in: eventIds },
+          paymentStatus: "paid",
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          confirmedSales: { $sum: "$totalAmount" },
+          platformFees: { $sum: "$platformFeeTotal" },
+          paystackFees: { $sum: "$paystackFeeTotal" },
+          expectedNetSettlement: { $sum: "$expectedNetSettlement" },
+          totalPaidOrders: { $sum: 1 },
+
+          pendingSettlement: {
+            $sum: {
+              $cond: [
+                { $in: ["$settlementStatus", ["pending", "processing"]] },
+                "$expectedNetSettlement",
+                0,
+              ],
+            },
+          },
+
+          settled: {
+            $sum: {
+              $cond: [
+                { $eq: ["$settlementStatus", "settled"] },
+                "$expectedNetSettlement",
+                0,
+              ],
+            },
+          },
+        },
+      },
+    ]);
+
+    const eventBreakdownAgg = await Order.aggregate([
+      {
+        $match: {
+          eventId: { $in: eventIds },
+          paymentStatus: "paid",
+        },
+      },
+      {
+        $group: {
+          _id: "$eventId",
+          confirmedSales: { $sum: "$totalAmount" },
+          platformFees: { $sum: "$platformFeeTotal" },
+          paystackFees: { $sum: "$paystackFeeTotal" },
+          expectedNetSettlement: { $sum: "$expectedNetSettlement" },
+          totalPaidOrders: { $sum: 1 },
+
+          pendingSettlement: {
+            $sum: {
+              $cond: [
+                { $in: ["$settlementStatus", ["pending", "processing"]] },
+                "$expectedNetSettlement",
+                0,
+              ],
+            },
+          },
+
+          settled: {
+            $sum: {
+              $cond: [
+                { $eq: ["$settlementStatus", "settled"] },
+                "$expectedNetSettlement",
+                0,
+              ],
+            },
+          },
+        },
+      },
+      {
+        $sort: {
+          confirmedSales: -1,
+        },
+      },
+    ]);
+
+    const summary = summaryAgg[0] || {
+      confirmedSales: 0,
+      pendingSettlement: 0,
+      settled: 0,
+      platformFees: 0,
+      paystackFees: 0,
+      expectedNetSettlement: 0,
+      totalPaidOrders: 0,
+    };
+
+    const eventMap = new Map(
+      organizerEvents.map((event) => [event._id.toString(), event]),
+    );
+
+    const events = eventBreakdownAgg.map((item) => {
+      const event = eventMap.get(item._id.toString());
+
+      return {
+        eventId: item._id,
+        title: event?.title || "Unknown Event",
+        date: event?.date || null,
+        location: event?.location || "",
+        confirmedSales: item.confirmedSales,
+        pendingSettlement: item.pendingSettlement,
+        settled: item.settled,
+        platformFees: item.platformFees,
+        paystackFees: item.paystackFees,
+        expectedNetSettlement: item.expectedNetSettlement,
+        totalPaidOrders: item.totalPaidOrders,
+      };
+    });
+
+    // Pagination for recent orders
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const perPage = Math.max(
+      1,
+      Math.min(100, parseInt(req.query.perPage as string) || 20),
+    );
+    const skip = (page - 1) * perPage;
+
+    const totalOrders = await Order.countDocuments({
+      eventId: { $in: eventIds },
+      paymentStatus: "paid",
+    });
+
+    const recentOrders = await Order.find({
+      eventId: { $in: eventIds },
+      paymentStatus: "paid",
+    })
+      .select(
+        "eventId buyerName buyerEmail paymentReference totalAmount platformFeeTotal paystackFeeTotal expectedNetSettlement settlementStatus paidAt settlementDate createdAt",
+      )
+      .sort({ paidAt: -1, createdAt: -1 })
+      .skip(skip)
+      .limit(perPage)
+      .lean();
+
+    const totalPages = Math.ceil(totalOrders / perPage);
+
+    const formattedRecentOrders = recentOrders.map((order) => {
+      const event = eventMap.get(order.eventId.toString());
+
+      return {
+        id: order._id,
+        eventId: order.eventId,
+        eventTitle: event?.title || "Unknown Event",
+        buyerName: order.buyerName,
+        buyerEmail: order.buyerEmail,
+        paymentReference: order.paymentReference,
+        grossAmount: order.totalAmount,
+        platformFeeTotal: order.platformFeeTotal,
+        paystackFeeTotal: order.paystackFeeTotal,
+        expectedNetSettlement: order.expectedNetSettlement,
+        settlementStatus: order.settlementStatus,
+        paidAt: order.paidAt,
+        settlementDate: order.settlementDate,
+      };
+    });
+
+    res.status(200).json({
+      status: "success",
+      data: {
+        summary: {
+          ...summary,
+          totalEventsWithSales: events.length,
+        },
+        events,
+        pagination: {
+          page,
+          perPage,
+          totalOrders,
+          totalPages,
+        },
+        recentOrders: formattedRecentOrders,
+      },
+    });
+  },
+);

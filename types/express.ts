@@ -1,6 +1,8 @@
 import { Types } from "mongoose";
 import { IDashboardUser } from "../models/dasboardUser";
 import { IUserSession } from "../models/userSession";
+import { IAdmin } from "../models/admin";
+import { IAdminSession } from "../models/adminSession";
 
 declare global {
   namespace Express {
@@ -17,6 +19,8 @@ declare global {
       };
       user?: IDashboardUser;
       session?: IUserSession;
+      admin?: IAdmin;
+      adminSession?: IAdminSession;
       rawBody?: Buffer;
     }
   }

@@ -149,7 +149,7 @@ export const createDashboardUser = catchAsync(
 );
 
 export const logout = catchAsync(
-  async (req: any, res: Response, next: NextFunction) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     if (!req.session) {
       return next(new AppError("No active session found", 401));
     }

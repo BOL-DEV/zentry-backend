@@ -8,7 +8,22 @@ export interface IOrder {
   totalAmount: number;
   paymentStatus: "pending" | "paid" | "cancelled";
   paymentReference?: string;
+
+  paymentGateway: "paystack";
+  paidAt?: Date;
+
+  platformFeeTotal: number;
+  paystackFeeTotal: number;
+  expectedNetSettlement: number;
+
+  settlementStatus: "pending" | "processing" | "settled" | "failed";
+  settlementBatchId?: string;
+  settlementDate?: Date;
+
+  paystackTransactionId?: string;
+
   createdAt: Date;
+  updatedAt: Date;
 }
 
 export type OrderDocument = HydratedDocument<IOrder>;
@@ -50,6 +65,40 @@ const OrderSchema = new Schema<IOrder>(
       type: String,
       trim: true,
     },
+    paymentGateway: {
+      type: String,
+      enum: ["paystack"],
+      default: "paystack",
+    },
+    paidAt: Date,
+    platformFeeTotal: {
+      type: Number,
+      default: 0,
+    },
+    paystackFeeTotal: {
+      type: Number,
+      default: 0,
+    },
+    expectedNetSettlement: {
+      type: Number,
+      default: 0,
+    },
+    settlementStatus: {
+      type: String,
+      enum: ["pending", "processing", "settled", "failed"],
+      default: "pending",
+    },
+    settlementBatchId: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    settlementDate: Date,
+    paystackTransactionId: {
+      type: String,
+      trim: true,
+      default: "",
+    },
   },
   {
     timestamps: true,
@@ -58,6 +107,9 @@ const OrderSchema = new Schema<IOrder>(
 );
 
 OrderSchema.index({ eventId: 1, createdAt: -1 });
+OrderSchema.index({ paymentReference: 1 }, { unique: true, sparse: true });
+OrderSchema.index({ eventId: 1, paymentStatus: 1, createdAt: -1 });
+OrderSchema.index({ eventId: 1, settlementStatus: 1, paidAt: -1 });
 
 const Order = model<IOrder>("Order", OrderSchema);
 

@@ -12,6 +12,9 @@ import { catchAsync } from "../utils/catchAsync";
 import { generateTicketCode } from "../utils/generateTicketCode";
 import { sendEmail } from "../utils/email";
 import { generateTicketEmailTemplate } from "../utils/ticketEmailTemplate";
+import { calculateOrderPlatformFee } from "../utils/platformFee";
+import { calculatePaystackFee } from "../utils/paystackFee";
+// import { calculatePlatformFeeForUnit } from "../utils/platformFee";
 
 export const handlePaystackWebhook = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
@@ -206,7 +209,26 @@ export const handlePaystackWebhook = catchAsync(
         );
       }
 
+      const platformFeeTotal = calculateOrderPlatformFee(
+        orderItems.map((item) => ({
+          unitPrice: item.unitPrice,
+          quantity: item.quantity,
+        })),
+      );
+
+      const paystackFeeTotal = calculatePaystackFee(order.totalAmount);
+      const expectedNetSettlement = Math.max(
+        order.totalAmount - platformFeeTotal - paystackFeeTotal,
+        0,
+      );
+
       order.paymentStatus = "paid";
+      order.paidAt = new Date();
+      order.platformFeeTotal = platformFeeTotal;
+      order.paystackFeeTotal = paystackFeeTotal;
+      order.expectedNetSettlement = expectedNetSettlement;
+      order.settlementStatus = "pending";
+      order.paystackTransactionId = String(verified.id ?? "");
       await order.save({ session });
 
       await session.commitTransaction();
