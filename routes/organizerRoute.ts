@@ -12,9 +12,7 @@ import {
   getOrganizerLandingEvents,
   getEventById,
 } from "../controllers/eventController";
-
 import { getEventTicketTypes } from "../controllers/ticketTypeController";
-
 import { createPurchase } from "../controllers/purchaseController";
 
 const router = Router();
@@ -56,5 +54,7 @@ router
     checkEventBelongToOrganizer,
     createPurchase,
   );
+
+
 
 export default router;

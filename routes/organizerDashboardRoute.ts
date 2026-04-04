@@ -4,12 +4,15 @@ import {
   getOrganizerEventStats,
   getEventAttendees,
   getScannerSummary,
+  getEventSettlementSummary,
+  getOrganizerSettlementSummary,
 } from "../controllers/organizerDashboardController";
 import { createGalleryItem } from "../controllers/galleryController";
 import { createEvent } from "../controllers/eventController";
 import { createTicketType } from "../controllers/ticketTypeController";
 import { verifyTicketForEvent } from "../controllers/ticketController";
 import { protect, restrictTo } from "../middlewares/protect";
+import { syncPaystackSettlements } from "../services/syncPaystackSettlement";
 
 const router = Router();
 
@@ -27,6 +30,10 @@ router
 router.route("/gallery").post(restrictTo("organizer"), createGalleryItem);
 
 router
+  .route("/overall-settlement-summary")
+  .get(restrictTo("organizer"), getOrganizerSettlementSummary);
+
+router
   .route("/events/:eventId/ticket-types")
   .post(restrictTo("organizer"), createTicketType);
 
@@ -41,5 +48,15 @@ router
 router
   .route("/events/:eventId/verify-ticket")
   .post(restrictTo("organizer", "staff"), verifyTicketForEvent);
+
+router
+  .route("/sync-settlements")
+  .post(restrictTo("organizer"), syncPaystackSettlements);
+
+router
+  .route("/events/:eventId/settlement-summary")
+  .get(restrictTo("organizer"), getEventSettlementSummary);
+
+
 
 export default router;

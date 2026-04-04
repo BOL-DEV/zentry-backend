@@ -1,12 +1,10 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
-import type { SignOptions } from "jsonwebtoken";
 import Admin from "../models/admin";
 import AdminSession from "../models/adminSession";
 import { adminLoginSchema } from "../validations/adminAuth.schema";
 import { AppError } from "../utils/appError";
 import { catchAsync } from "../utils/catchAsync";
-
 
 type AdminTokenPayload = {
   id: string;
@@ -73,7 +71,7 @@ export const adminLogin = catchAsync(
 );
 
 export const adminLogout = catchAsync(
-  async (req: any, res: Response, next: NextFunction) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     if (!req.adminSession) {
       return next(new AppError("No active admin session found", 401));
     }
@@ -88,15 +86,15 @@ export const adminLogout = catchAsync(
   },
 );
 
-export const getAdminMe = catchAsync(async (req: any, res: Response) => {
+export const getAdminMe = catchAsync(async (req: Request, res: Response) => {
   res.status(200).json({
     status: "success",
     data: {
       admin: {
-        id: req.admin._id,
-        fullName: req.admin.fullName,
-        email: req.admin.email,
-        isActive: req.admin.isActive,
+        id: req.admin?._id,
+        fullName: req.admin?.fullName,
+        email: req.admin?.email,
+        isActive: req.admin?.isActive,
       },
     },
   });

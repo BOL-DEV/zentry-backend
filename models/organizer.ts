@@ -61,6 +61,10 @@ const organizerSchema = new Schema(
       required: [true, "Organizer paystack subaccount ID is required"],
       trim: true,
     },
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
   },
   {
     timestamps: true,

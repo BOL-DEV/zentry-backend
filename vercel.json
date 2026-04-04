@@ -6,5 +6,11 @@
       "use": "@vercel/node"
     }
   ],
-  "rewrites": [{ "source": "/(.*)", "destination": "/api/index.ts" }]
+  "rewrites": [{ "source": "/(.*)", "destination": "/api/index.ts" }],
+  "crons": [
+    {
+      "path": "/api/v1/internal/cron/settlements/sync",
+      "schedule": "0 6 * * *"
+    }
+  ]
 }

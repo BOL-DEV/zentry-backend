@@ -7,6 +7,7 @@ import adminAuthRoute from "../routes/adminAuthRoute";
 // import ticketRoute from "./routes/ticketRoute";
 import authRoute from "../routes/authRoute";
 import organizerDashboardRoute from "../routes/organizerDashboardRoute";
+import adminCronRoute from "../routes/adminCronRoute";
 import morgan from "morgan";
 import { globalErrorHandler } from "../middlewares/errorMiddleware";
 import cors from "cors";
@@ -35,12 +36,12 @@ app.use("/api/v1/payments", paymentRoute);
 // app.use("/api/v1/tickets", ticketRoute);
 app.use("/api/v1/auth", authRoute);
 app.use("/api/v1/admin/auth", adminAuthRoute);
-
+app.use("/api/v1/internal/cron", adminCronRoute);
 
 app.get("/", (_req, res) => {
   res.status(200).json({
     status: "success",
-    message: "Welcome to the EventFlow API!",
+    message: "Welcome to the Zentry API!",
   });
 });
 
