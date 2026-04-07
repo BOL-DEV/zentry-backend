@@ -44,7 +44,7 @@ export const syncPaystackSettlements = async (options?: {
   };
 
   let settlementPage = 1;
-  const perPage = 100;
+  const perPage = 30;
 
   while (true) {
     const settlementQuery: {

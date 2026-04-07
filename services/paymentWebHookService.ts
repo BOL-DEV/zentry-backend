@@ -14,7 +14,7 @@ import { sendEmail } from "../utils/email";
 import { generateTicketEmailTemplate } from "../utils/ticketEmailTemplate";
 import { calculateOrderPlatformFee } from "../utils/platformFee";
 import { calculatePaystackFee } from "../utils/paystackFee";
-// import { calculatePlatformFeeForUnit } from "../utils/platformFee";
+import { releaseOrderReservation } from "./orderReservationService";
 
 export const handlePaystackWebhook = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
@@ -111,6 +111,17 @@ export const handlePaystackWebhook = catchAsync(
         );
       }
 
+      if (
+        order.reservationExpiresAt &&
+        order.reservationExpiresAt.getTime() <= Date.now()
+      ) {
+        await releaseOrderReservation({ order, session });
+        throw new AppError(
+          "Order reservation has expired. Please create a new order before paying.",
+          409,
+        );
+      }
+
       const paidAmount = Number(verified.amount) / 100;
 
       if (paidAmount !== order.totalAmount) {
@@ -204,7 +215,12 @@ export const handlePaystackWebhook = catchAsync(
       for (const item of orderItems) {
         await TicketType.updateOne(
           { _id: item.ticketTypeId },
-          { $inc: { quantitySold: item.quantity } },
+          {
+            $inc: {
+              quantitySold: item.quantity,
+              quantityReserved: -item.quantity,
+            },
+          },
           { session },
         );
       }
@@ -229,6 +245,7 @@ export const handlePaystackWebhook = catchAsync(
       order.expectedNetSettlement = expectedNetSettlement;
       order.settlementStatus = "pending";
       order.paystackTransactionId = String(verified.id ?? "");
+      order.reservationReleasedAt = new Date();
       await order.save({ session });
 
       await session.commitTransaction();

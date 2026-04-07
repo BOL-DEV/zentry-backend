@@ -6,6 +6,13 @@ import { TicketType } from "../models/ticketTypes";
 import { AppError } from "../utils/appError";
 import { catchAsync } from "../utils/catchAsync";
 import { createPurchaseSchema } from "../validations/purchase.schema";
+import { generatePaymentReference } from "../utils/generatePaymentReference";
+import { generateOrderAccessToken } from "../utils/generateOrderAccessToken";
+import {
+  buildReservationExpiry,
+  cleanupExpiredReservationsForEvent,
+  reserveTicketQuantities,
+} from "../services/orderReservationService";
 
 export const createPurchase = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
@@ -82,6 +89,11 @@ export const createPurchase = catchAsync(
     session.startTransaction();
 
     try {
+      await cleanupExpiredReservationsForEvent({
+        eventId: event._id,
+        session,
+      });
+
       const order = new Order({
         eventId: event._id,
         buyerName,
@@ -89,9 +101,21 @@ export const createPurchase = catchAsync(
         ...(buyerPhone ? { buyerPhone } : {}),
         totalAmount,
         paymentStatus: "pending",
+        paymentReference: generatePaymentReference(),
+        accessToken: generateOrderAccessToken(),
+        reservationExpiresAt: buildReservationExpiry(),
       });
 
       await order.save({ session });
+
+      await reserveTicketQuantities({
+        eventId: event._id,
+        items: items.map((item) => ({
+          ticketTypeId: item.ticketTypeId,
+          quantity: item.quantity,
+        })),
+        session,
+      });
 
       await OrderItem.insertMany(
         orderItemsToCreate.map((item) => ({
@@ -116,6 +140,8 @@ export const createPurchase = catchAsync(
             totalAmount: order.totalAmount,
             paymentStatus: order.paymentStatus,
             paymentReference: order.paymentReference,
+            accessToken: order.accessToken,
+            reservationExpiresAt: order.reservationExpiresAt,
           },
           items: orderItemsToCreate.map((item) => ({
             ticketTypeId: item.ticketTypeId,

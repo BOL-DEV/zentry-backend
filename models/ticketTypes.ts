@@ -7,6 +7,7 @@ export interface ITicketType extends Document {
   price: number;
   quantityAvailable: number;
   quantitySold: number;
+  quantityReserved: number;
   isActive: boolean;
   displayOrder: number;
 }
@@ -38,6 +39,11 @@ const TicketTypeSchema = new Schema<ITicketType>(
     quantitySold: {
       type: Number,
       default: 0,
+    },
+    quantityReserved: {
+      type: Number,
+      default: 0,
+      min: [0, "Reserved quantity cannot be negative"],
     },
     isActive: {
       type: Boolean,

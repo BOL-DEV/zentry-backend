@@ -1,6 +1,7 @@
 import { Router } from "express";
 import {
   createOrganizer,
+  getPublicOrganizers,
   getOrganizerBySlug,
 } from "../controllers/organizerController";
 import { getGalleryItems } from "../controllers/galleryController";
@@ -17,7 +18,7 @@ import { createPurchase } from "../controllers/purchaseController";
 
 const router = Router();
 
-router.route("/").post(createOrganizer);
+router.route("/").get(getPublicOrganizers).post(createOrganizer);
 router.route("/:slug").get(checkOrganizerExist, getOrganizerBySlug);
 
 router.route("/:slug/gallery").get(checkOrganizerExist, getGalleryItems);
