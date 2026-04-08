@@ -1,4 +1,5 @@
 import Event from "../models/event";
+import { TicketType } from "../models/ticketTypes";
 import { createEventSchema } from "../validations/event.schema";
 import { catchAsync } from "../utils/catchAsync";
 import { AppError } from "../utils/appError";
@@ -158,15 +159,34 @@ export const getAllEvents = catchAsync(
 export const getEventById = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
     const organizer = req.organizer;
-    const event = req.event;
+    const eventRef = req.event;
 
     if (!organizer) {
       return next(new AppError("Organizer not found", 404));
     }
 
-    if (!event) {
+    if (!eventRef) {
       return next(new AppError("Event not found", 404));
     }
+
+    const event = await Event.findOne({
+      _id: eventRef._id,
+      organizerId: organizer._id,
+    }).lean();
+
+    if (!event) {
+      return next(new AppError("Event not found for this organizer", 404));
+    }
+
+    const ticketTypes = await TicketType.find({
+      eventId: event._id,
+      isActive: true,
+    })
+      .select(
+        "_id name description price quantityAvailable quantitySold quantityReserved displayOrder isActive createdAt updatedAt",
+      )
+      .sort({ displayOrder: 1, createdAt: 1 })
+      .lean();
 
     res.status(200).json({
       status: "success",
@@ -176,6 +196,7 @@ export const getEventById = catchAsync(
           name: organizer.name,
         },
         event,
+        ticketTypes,
       },
     });
   },

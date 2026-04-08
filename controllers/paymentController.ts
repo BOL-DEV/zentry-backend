@@ -7,7 +7,9 @@ import OrderItem from "../models/orderItem";
 import { AppError } from "../utils/appError";
 import { catchAsync } from "../utils/catchAsync";
 import { orderIdParamSchema } from "../validations/payment.schema";
-import { generatePaymentReference } from "../utils/generatePaymentReference";
+import { assertOrderAccess } from "../utils/orderAccess";
+import { releaseOrderReservation } from "../services/orderReservationService";
+import mongoose from "mongoose";
 
 const PLATFORM_FEE_FLAT_NAIRA = 100;
 const PLATFORM_FEE_THRESHOLD_NAIRA = 3500;
@@ -27,17 +29,51 @@ export const initializeOrderPayment = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
     const { orderId } = orderIdParamSchema.parse(req.params);
 
-    const order = await Order.findById(orderId);
+    const order = await Order.findById(orderId).select("+accessToken");
 
     if (!order) {
       return next(new AppError("Order not found", 404));
     }
+
+    assertOrderAccess(req, order);
 
     if (order.paymentStatus !== "pending") {
       return next(
         new AppError(
           "This order is not eligible for payment initialization",
           400,
+        ),
+      );
+    }
+
+    if (
+      order.reservationExpiresAt &&
+      order.reservationExpiresAt.getTime() <= Date.now()
+    ) {
+      const session = await mongoose.startSession();
+      session.startTransaction();
+
+      try {
+        const pendingOrder = await Order.findById(order._id)
+          .select("+accessToken")
+          .session(session);
+
+        if (pendingOrder) {
+          await releaseOrderReservation({ order: pendingOrder, session });
+        }
+
+        await session.commitTransaction();
+      } catch (error) {
+        await session.abortTransaction();
+        throw error;
+      } finally {
+        session.endSession();
+      }
+
+      return next(
+        new AppError(
+          "This order reservation has expired. Please create a new order.",
+          409,
         ),
       );
     }
@@ -89,11 +125,6 @@ export const initializeOrderPayment = catchAsync(
 
     if (totalTickets <= 0) {
       return next(new AppError("Invalid ticket quantity for this order", 400));
-    }
-
-    if (!order.paymentReference) {
-      order.paymentReference = generatePaymentReference();
-      await order.save();
     }
 
     const amountInKobo = Math.round(order.totalAmount * 100);

@@ -9,6 +9,8 @@ export interface IEvent extends Document {
   posterUrl: string;
   dressCode: string;
   policies: string;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 const eventSchema = new Schema<IEvent>(

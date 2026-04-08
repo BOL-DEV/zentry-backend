@@ -8,6 +8,9 @@ export interface IOrder {
   totalAmount: number;
   paymentStatus: "pending" | "paid" | "cancelled";
   paymentReference?: string;
+  accessToken?: string;
+  reservationExpiresAt?: Date;
+  reservationReleasedAt?: Date;
 
   paymentGateway: "paystack";
   paidAt?: Date;
@@ -65,6 +68,13 @@ const OrderSchema = new Schema<IOrder>(
       type: String,
       trim: true,
     },
+    accessToken: {
+      type: String,
+      trim: true,
+      select: false,
+    },
+    reservationExpiresAt: Date,
+    reservationReleasedAt: Date,
     paymentGateway: {
       type: String,
       enum: ["paystack"],
@@ -108,6 +118,7 @@ const OrderSchema = new Schema<IOrder>(
 
 OrderSchema.index({ eventId: 1, createdAt: -1 });
 OrderSchema.index({ paymentReference: 1 }, { unique: true, sparse: true });
+OrderSchema.index({ accessToken: 1 }, { unique: true, sparse: true });
 OrderSchema.index({ eventId: 1, paymentStatus: 1, createdAt: -1 });
 OrderSchema.index({ eventId: 1, settlementStatus: 1, paidAt: -1 });
 

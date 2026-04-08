@@ -46,3 +46,9 @@ export const organizerSlugParamSchema = z.object({
     .regex(/^[a-z0-9-]+$/, "Invalid organizer slug"),
 });
 
+export const organizerIdParamSchema = z.object({
+  organizerId: z
+    .string()
+    .trim()
+    .regex(/^[a-fA-F0-9]{24}$/, "Invalid organizer ID"),
+});
