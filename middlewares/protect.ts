@@ -4,6 +4,7 @@ import DashboardUser from "../models/dasboardUser";
 import UserSession from "../models/userSession";
 import Admin from "../models/admin";
 import AdminSession from "../models/adminSession";
+import Organizer from "../models/organizer";
 import { AppError } from "../utils/appError";
 import { catchAsync } from "../utils/catchAsync";
 
@@ -58,6 +59,24 @@ export const protect = catchAsync(
 
     if (session.userId.toString() !== user._id.toString()) {
       return next(new AppError("Invalid session", 401));
+    }
+
+    const organizer = await Organizer.findById({
+      _id: user.organizerId,
+      isActive: true,
+    }).select("_id isActive");
+
+    if (!organizer) {
+      return next(new AppError("Associated organizer not found", 404));
+    }
+
+    if (!organizer.isActive) {
+      return next(
+        new AppError(
+          "Associated organizer account is disabled, Contact platform support",
+          403,
+        ),
+      );
     }
 
     session.lastSeenAt = new Date();

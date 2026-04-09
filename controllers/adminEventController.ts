@@ -6,41 +6,20 @@ import Ticket from "../models/ticket";
 import { AppError } from "../utils/appError";
 import { catchAsync } from "../utils/catchAsync";
 import { eventIdParamSchema } from "../validations/event.schema";
-
-const isValidObjectId = (value: string) =>
-  mongoose.Types.ObjectId.isValid(value);
-
-const parseBooleanQuery = (value: unknown): boolean | undefined => {
-  if (typeof value !== "string") return undefined;
-  if (value === "true") return true;
-  if (value === "false") return false;
-  return undefined;
-};
+import { adminEventsQuerySchema } from "../validations/adminEvent.schema";
 
 export const getAdminEvents = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
-    const page = Math.max(Number(req.query.page) || 1, 1);
-    const limit = Math.max(Number(req.query.limit) || 10, 1);
+    const { page, limit, search, organizerId, upcoming } =
+      adminEventsQuerySchema.parse(req.query);
+
     const skip = (page - 1) * limit;
-
-    const search =
-      typeof req.query.search === "string" ? req.query.search.trim() : "";
-
-    const organizerId =
-      typeof req.query.organizerId === "string"
-        ? req.query.organizerId.trim()
-        : "";
-
-    const upcoming = parseBooleanQuery(req.query.upcoming);
 
     const now = new Date();
 
     const filter: Record<string, unknown> = {};
 
     if (organizerId) {
-      if (!isValidObjectId(organizerId)) {
-        return next(new AppError("Invalid organizer ID", 400));
-      }
       filter.organizerId = new mongoose.Types.ObjectId(organizerId);
     }
 
@@ -203,10 +182,6 @@ export const getAdminEvents = catchAsync(
 export const getAdminEventById = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
     const { eventId } = eventIdParamSchema.parse(req.params);
-
-    if (eventId) {
-      return next(new AppError("Invalid event ID", 400));
-    }
 
     const event = await Event.findById(eventId)
       .populate({

@@ -29,6 +29,8 @@ export const createPurchaseSchema = z
       )
       .optional(),
 
+    paymentGateway: z.enum(["paystack", "squad"]).default("paystack"),
+
     items: z
       .array(purchaseItemSchema)
       .min(1, "At least one item must be purchased"),
@@ -41,5 +43,12 @@ export const createPurchaseSchema = z
     {
       message: "Duplicate ticket types are not allowed in one purchase",
       path: ["items"],
+    },
+  )
+  .refine(
+    (data) => data.paymentGateway !== "squad" || Boolean(data.buyerPhone),
+    {
+      message: "Buyer phone number is required for Squad payments",
+      path: ["buyerPhone"],
     },
   );

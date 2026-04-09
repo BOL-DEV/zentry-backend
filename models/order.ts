@@ -12,8 +12,18 @@ export interface IOrder {
   reservationExpiresAt?: Date;
   reservationReleasedAt?: Date;
 
-  paymentGateway: "paystack";
+  paymentGateway: "paystack" | "squad";
   paidAt?: Date;
+
+  virtualAccountDetails?: {
+    accountNumber: string;
+    bankName: string;
+    accountName: string;
+    expiresAt: Date;
+  };
+
+  squadTransferFee: number;
+  organizerPayoutAmount: number;
 
   platformFeeTotal: number;
   paystackFeeTotal: number;
@@ -77,7 +87,7 @@ const OrderSchema = new Schema<IOrder>(
     reservationReleasedAt: Date,
     paymentGateway: {
       type: String,
-      enum: ["paystack"],
+      enum: ["paystack", "squad"],
       default: "paystack",
     },
     paidAt: Date,
@@ -108,6 +118,29 @@ const OrderSchema = new Schema<IOrder>(
       type: String,
       trim: true,
       default: "",
+    },
+    virtualAccountDetails: {
+      accountNumber: {
+        type: String,
+        trim: true,
+      },
+      bankName: {
+        type: String,
+        trim: true,
+      },
+      accountName: {
+        type: String,
+        trim: true,
+      },
+      expiresAt: Date,
+    },
+    squadTransferFee: {
+      type: Number,
+      default: 0,
+    },
+    organizerPayoutAmount: {
+      type: Number,
+      default: 0,
     },
   },
   {
