@@ -12,7 +12,7 @@ export const checkOrganizerExist = catchAsync(
       return next(new AppError("Invalid organizer slug", 400));
     }
 
-    const organizer = await Organizer.findOne({ slug })
+    const organizer = await Organizer.findOne({ slug, isActive: true })
       .select("_id slug name")
       .lean();
 

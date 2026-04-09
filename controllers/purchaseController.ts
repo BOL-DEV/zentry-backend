@@ -13,6 +13,30 @@ import {
   cleanupExpiredReservationsForEvent,
   reserveTicketQuantities,
 } from "../services/orderReservationService";
+import { SquadService } from "../services/squadService";
+
+const PLATFORM_FEE_FLAT_NAIRA = 100;
+const PLATFORM_FEE_THRESHOLD_NAIRA = 3500;
+const PLATFORM_FEE_PERCENT_ABOVE_THRESHOLD = 0.03;
+const SQUAD_TRANSFER_FEE_NAIRA = 25;
+
+const calculatePlatformFee = (amount: number) => {
+  if (amount < PLATFORM_FEE_THRESHOLD_NAIRA) {
+    return PLATFORM_FEE_FLAT_NAIRA;
+  }
+
+  return Number((amount * PLATFORM_FEE_PERCENT_ABOVE_THRESHOLD).toFixed(2));
+};
+
+const splitBuyerName = (buyerName: string) => {
+  const normalized = buyerName.trim().replace(/\s+/g, " ");
+  const [firstName, ...rest] = normalized.split(" ");
+
+  return {
+    firstName: firstName || normalized,
+    lastName: rest.join(" ") || "Customer",
+  };
+};
 
 export const createPurchase = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
@@ -22,7 +46,7 @@ export const createPurchase = catchAsync(
       return next(new AppError("Event not found", 404));
     }
 
-    const { buyerName, buyerEmail, buyerPhone, items } =
+    const { buyerName, buyerEmail, buyerPhone, paymentGateway, items } =
       createPurchaseSchema.parse(req.body);
 
     const ticketTypeIds = items.map((item) => item.ticketTypeId);
@@ -85,6 +109,61 @@ export const createPurchase = catchAsync(
       };
     });
 
+    const paymentReference = generatePaymentReference();
+    const accessToken = generateOrderAccessToken();
+    const reservationExpiresAt = buildReservationExpiry();
+
+    const platformFeeTotal =
+      paymentGateway === "squad" ? calculatePlatformFee(totalAmount) : 0;
+    const squadTransferFee =
+      paymentGateway === "squad" ? SQUAD_TRANSFER_FEE_NAIRA : 0;
+    const organizerPayoutAmount =
+      paymentGateway === "squad"
+        ? Math.max(totalAmount - platformFeeTotal - squadTransferFee, 0)
+        : 0;
+
+    let virtualAccountDetails:
+      | {
+          accountNumber: string;
+          bankName: string;
+          accountName: string;
+          expiresAt: Date;
+        }
+      | undefined;
+
+    if (paymentGateway === "squad") {
+      if (!buyerPhone) {
+        return next(
+          new AppError("Buyer phone number is required for Squad payments", 400),
+        );
+      }
+
+      const { firstName, lastName } = splitBuyerName(buyerName);
+      const squadAccount = await SquadService.createVirtualAccount({
+        first_name: firstName,
+        last_name: lastName,
+        email: buyerEmail,
+        mobile_num: buyerPhone,
+        amount: Math.round(totalAmount * 100),
+        transaction_ref: paymentReference,
+      });
+
+      virtualAccountDetails = {
+        accountNumber: String(squadAccount.virtual_account_number ?? ""),
+        bankName:
+          String(
+            squadAccount.bank_name ??
+              squadAccount.bank ??
+              squadAccount.bankName ??
+              "",
+          ) || "GTBank (Squad)",
+        accountName: String(
+          squadAccount.account_name ?? squadAccount.customer_name ?? buyerName,
+        ),
+        expiresAt: reservationExpiresAt,
+      };
+    }
+
     const session = await mongoose.startSession();
     session.startTransaction();
 
@@ -101,9 +180,14 @@ export const createPurchase = catchAsync(
         ...(buyerPhone ? { buyerPhone } : {}),
         totalAmount,
         paymentStatus: "pending",
-        paymentReference: generatePaymentReference(),
-        accessToken: generateOrderAccessToken(),
-        reservationExpiresAt: buildReservationExpiry(),
+        paymentGateway,
+        paymentReference,
+        accessToken,
+        reservationExpiresAt,
+        platformFeeTotal,
+        squadTransferFee,
+        organizerPayoutAmount,
+        ...(virtualAccountDetails ? { virtualAccountDetails } : {}),
       });
 
       await order.save({ session });
@@ -139,9 +223,14 @@ export const createPurchase = catchAsync(
             buyerPhone: order.buyerPhone,
             totalAmount: order.totalAmount,
             paymentStatus: order.paymentStatus,
+            paymentGateway: order.paymentGateway,
             paymentReference: order.paymentReference,
             accessToken: order.accessToken,
             reservationExpiresAt: order.reservationExpiresAt,
+            platformFeeTotal: order.platformFeeTotal,
+            squadTransferFee: order.squadTransferFee,
+            organizerPayoutAmount: order.organizerPayoutAmount,
+            virtualAccountDetails: order.virtualAccountDetails,
           },
           items: orderItemsToCreate.map((item) => ({
             ticketTypeId: item.ticketTypeId,

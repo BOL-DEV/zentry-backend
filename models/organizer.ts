@@ -58,8 +58,25 @@ const organizerSchema = new Schema(
     },
     paystackSubaccountCode: {
       type: String,
-      required: [true, "Organizer paystack subaccount ID is required"],
       trim: true,
+    },
+    bankDetails: {
+      bankName: {
+        type: String,
+        trim: true,
+      },
+      bankCode: {
+        type: String,
+        trim: true,
+      },
+      accountNumber: {
+        type: String,
+        trim: true,
+      },
+      accountName: {
+        type: String,
+        trim: true,
+      },
     },
     isActive: {
       type: Boolean,

@@ -6,8 +6,7 @@ import { catchAsync } from "../utils/catchAsync";
 import { adminOrdersQuerySchema } from "../validations/adminOrder.schema";
 import { orderIdParamSchema } from "../validations/payment.schema";
 
-const isValidObjectId = (value: string) =>
-  mongoose.Types.ObjectId.isValid(value);
+
 
 export const getAdminOrders = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
@@ -34,7 +33,7 @@ export const getAdminOrders = catchAsync(
     }
 
     if (eventId) {
-      if (!isValidObjectId(eventId)) {
+      if (eventId) {
         return next(new AppError("Invalid event ID", 400));
       }
       matchStage.eventId = new mongoose.Types.ObjectId(eventId);
@@ -69,10 +68,6 @@ export const getAdminOrders = catchAsync(
     ];
 
     if (organizerId) {
-      if (!isValidObjectId(organizerId)) {
-        return next(new AppError("Invalid organizer ID", 400));
-      }
-
       pipeline.push({
         $match: {
           "organizer._id": new mongoose.Types.ObjectId(organizerId),
@@ -225,7 +220,7 @@ export const getAdminOrderById = catchAsync(
       },
       {
         $lookup: {
-          from: "OrderItem",
+          from: "orderItems",
           localField: "_id",
           foreignField: "orderId",
           as: "items",

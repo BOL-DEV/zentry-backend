@@ -4,7 +4,10 @@ import { protectAdmin, restrictTo } from "../middlewares/protect";
 import { getAdminOrganizerById, getAdminOrganizers, toggleAdminOrganizerActiveState } from "../controllers/adminOrganizerController";
 import { getAdminOrderById, getAdminOrders } from "../controllers/adminOrderController";
 import { getAdminEventById, getAdminEvents } from "../controllers/adminEventController";
-
+import {
+  getAdminTicketById,
+  getAdminTickets,
+} from "../controllers/adminTicketController";
 
 const router = Router();
 
@@ -16,7 +19,9 @@ router.route("/analytics").get(getAdminAnalyticsSummary);
 /// ORGANIZER MANAGEMENT
 router.route("/organizers").get(getAdminOrganizers);
 router.route("/organizers/:organizerId").get(getAdminOrganizerById);
-router.route("/organizers/:organizerId/toggle-active").patch(toggleAdminOrganizerActiveState);
+router
+  .route("/organizers/:organizerId/toggle-active")
+  .patch(toggleAdminOrganizerActiveState);
 
 /// ORDER MANAGEMENT
 router.route("/orders").get(getAdminOrders);
@@ -25,5 +30,9 @@ router.route("/orders/:orderId").get(getAdminOrderById);
 /// EVENT MANAGEMENT
 router.route("/events").get(getAdminEvents);
 router.route("/events/:eventId").get(getAdminEventById);
+
+/// TICKET MANAGEMENT
+router.route("/tickets").get(getAdminTickets);
+router.route("/tickets/:ticketId").get(getAdminTicketById);
 
 export default router;
