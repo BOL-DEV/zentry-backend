@@ -9,7 +9,6 @@ import authRoute from "../routes/authRoute";
 import organizerDashboardRoute from "../routes/organizerDashboardRoute";
 import adminCronRoute from "../routes/adminCronRoute";
 import adminRoute from "../routes/adminRoute";
-import staffSessionRoute from "../routes/staffSessionRoute";
 import morgan from "morgan";
 import { globalErrorHandler } from "../middlewares/errorMiddleware";
 import cors from "cors";
@@ -31,7 +30,6 @@ app.use(
 );
 
 app.use("/api/v1/organizer/dashboard", organizerDashboardRoute);
-app.use("/api/v1/organizer/dashboard", staffSessionRoute);
 app.use("/api/v1/organizer", organizerRoute);
 app.use("/api/v1/events", eventsRoute);
 app.use("/api/v1/orders", orderRoute);
