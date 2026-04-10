@@ -88,7 +88,7 @@ const OrderSchema = new Schema<IOrder>(
     paymentGateway: {
       type: String,
       enum: ["paystack", "squad"],
-      default: "paystack",
+      default: "squad",
     },
     paidAt: Date,
     platformFeeTotal: {

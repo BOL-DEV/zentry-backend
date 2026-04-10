@@ -29,7 +29,7 @@ export const createPurchaseSchema = z
       )
       .optional(),
 
-    paymentGateway: z.enum(["paystack", "squad"]).default("paystack"),
+    paymentGateway: z.literal("squad").default("squad"),
 
     items: z
       .array(purchaseItemSchema)
