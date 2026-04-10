@@ -31,6 +31,7 @@ app.use(
 );
 
 app.use("/api/v1/organizer/dashboard", organizerDashboardRoute);
+app.use("/api/v1/organizer/dashboard", staffSessionRoute);
 app.use("/api/v1/organizer", organizerRoute);
 app.use("/api/v1/events", eventsRoute);
 app.use("/api/v1/orders", orderRoute);
@@ -40,7 +41,6 @@ app.use("/api/v1/auth", authRoute);
 app.use("/api/v1/admin/auth", adminAuthRoute);
 app.use("/api/v1/internal/cron", adminCronRoute);
 app.use("/api/v1/admin", adminRoute);
-app.use("/api/v1/organizer/dashboard", staffSessionRoute);
 
 app.get("/", (_req, res) => {
   res.status(200).json({
