@@ -22,7 +22,7 @@ export const SquadService = {
     amount: number;
     transaction_ref: string;
   }) => {
-    const response = await squadApi.post("/virtual-account/business", {
+    const response = await squadApi.post("/virtual-account", {
       ...orderData,
       // This identifies the order in the webhook later
       customer_identifier: orderData.transaction_ref,
