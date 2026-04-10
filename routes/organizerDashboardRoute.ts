@@ -13,33 +13,39 @@ import { createTicketType } from "../controllers/ticketTypeController";
 import { verifyTicketForEvent } from "../controllers/ticketController";
 import { protect, restrictTo } from "../middlewares/protect";
 import { syncPaystackSettlements } from "../services/syncPaystackSettlement";
+import {
+  getStaffSessions,
+  logoutAllStaffSessions,
+  logoutOneStaffSession,
+} from "../controllers/staffSessionController";
 
 const router = Router();
 
 router.use(protect);
+router.use(restrictTo("organizer"));
 
 router
   .route("/summary")
-  .get(restrictTo("organizer"), getOrganizerDashboardSummary);
+  .get(getOrganizerDashboardSummary);
 
 router
   .route("/events")
-  .get(restrictTo("organizer"), getOrganizerEventStats)
-  .post(restrictTo("organizer"), createEvent);
+  .get(getOrganizerEventStats)
+  .post(createEvent);
 
-router.route("/gallery").post(restrictTo("organizer"), createGalleryItem);
+router.route("/gallery").post(createGalleryItem);
 
 router
   .route("/overall-settlement-summary")
-  .get(restrictTo("organizer"), getOrganizerSettlementSummary);
+  .get(getOrganizerSettlementSummary);
 
 router
   .route("/events/:eventId/ticket-types")
-  .post(restrictTo("organizer"), createTicketType);
+  .post(createTicketType);
 
 router
   .route("/events/:eventId/attendees")
-  .get(restrictTo("organizer"), getEventAttendees);
+  .get(getEventAttendees);
 
 router
   .route("/events/:eventId/scanner-summary")
@@ -51,11 +57,23 @@ router
 
 router
   .route("/sync-settlements")
-  .post(restrictTo("organizer"), syncPaystackSettlements);
+  .post(syncPaystackSettlements);
 
 router
   .route("/events/:eventId/settlement-summary")
-  .get(restrictTo("organizer"), getEventSettlementSummary);
+  .get(getEventSettlementSummary);
+
+router
+  .route("/staff/:staffId/sessions")
+  .get(getStaffSessions);
+
+router
+  .route("/staff/:staffId/sessions/:sessionId/logout")
+  .patch(logoutOneStaffSession);
+
+router
+  .route("/staff/:staffId/logout-all")
+  .patch(logoutAllStaffSessions);
 
 
 
