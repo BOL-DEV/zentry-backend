@@ -12,28 +12,17 @@ export interface IOrder {
   reservationExpiresAt?: Date;
   reservationReleasedAt?: Date;
 
-  paymentGateway: "paystack" | "squad";
+  paymentGateway: "squad";
   paidAt?: Date;
 
-  virtualAccountDetails?: {
-    accountNumber: string;
-    bankName: string;
-    accountName: string;
-    expiresAt: Date;
-  };
-
-  squadTransferFee: number;
-  organizerPayoutAmount: number;
-
+  // Fee Tracking
+  squadGatewayFee: number;
   platformFeeTotal: number;
-  paystackFeeTotal: number;
-  expectedNetSettlement: number;
+  organizerPayoutAmount: number;
 
   settlementStatus: "pending" | "processing" | "settled" | "failed";
   settlementBatchId?: string;
   settlementDate?: Date;
-
-  paystackTransactionId?: string;
 
   createdAt: Date;
   updatedAt: Date;
@@ -87,19 +76,11 @@ const OrderSchema = new Schema<IOrder>(
     reservationReleasedAt: Date,
     paymentGateway: {
       type: String,
-      enum: ["paystack", "squad"],
+      enum: ["squad"],
       default: "squad",
     },
     paidAt: Date,
     platformFeeTotal: {
-      type: Number,
-      default: 0,
-    },
-    paystackFeeTotal: {
-      type: Number,
-      default: 0,
-    },
-    expectedNetSettlement: {
       type: Number,
       default: 0,
     },
@@ -114,30 +95,6 @@ const OrderSchema = new Schema<IOrder>(
       default: "",
     },
     settlementDate: Date,
-    paystackTransactionId: {
-      type: String,
-      trim: true,
-      default: "",
-    },
-    virtualAccountDetails: {
-      accountNumber: {
-        type: String,
-        trim: true,
-      },
-      bankName: {
-        type: String,
-        trim: true,
-      },
-      accountName: {
-        type: String,
-        trim: true,
-      },
-      expiresAt: Date,
-    },
-    squadTransferFee: {
-      type: Number,
-      default: 0,
-    },
     organizerPayoutAmount: {
       type: Number,
       default: 0,

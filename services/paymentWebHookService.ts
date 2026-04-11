@@ -18,6 +18,30 @@ import { calculatePaystackFee } from "../utils/paystackFee";
 import { releaseOrderReservation } from "./orderReservationService";
 import { SquadService } from "./squadService";
 
+type FulfilledOrderResult =
+  | {
+      alreadyProcessed: true;
+      event?: undefined;
+      orderItems?: undefined;
+      createdTickets?: undefined;
+    }
+  | {
+      alreadyProcessed: false;
+      event: {
+        title: string;
+        organizerId: mongoose.Types.ObjectId;
+      };
+      orderItems: Array<{
+        ticketTypeId: mongoose.Types.ObjectId;
+        ticketTypeName: string;
+        quantity: number;
+      }>;
+      createdTickets: Array<{
+        ticketCode: string;
+        ticketTypeId: mongoose.Types.ObjectId;
+      }>;
+    };
+
 const verifyHmacSignature = ({
   rawBody,
   secret,
@@ -106,8 +130,6 @@ const sendTicketsEmail = async ({
   }
 };
 
-
-
 const fulfillPaidOrder = async ({
   session,
   order,
@@ -122,7 +144,7 @@ const fulfillPaidOrder = async ({
   paystackFeeTotal: number;
   expectedNetSettlement: number;
   paystackTransactionId?: string;
-}) => {
+}): Promise<FulfilledOrderResult> => {
   if (order.paymentStatus === "paid") {
     return {
       alreadyProcessed: true,
@@ -376,17 +398,6 @@ export const handlePaystackWebhook = catchAsync(
         });
       }
 
-      if (
-        !fulfillment.event ||
-        !fulfillment.createdTickets ||
-        !fulfillment.orderItems
-      ) {
-        throw new AppError(
-          "Payment fulfillment did not complete correctly",
-          500,
-        );
-      }
-
       const paidAmount = Number(verified.amount) / 100;
 
       if (paidAmount !== order.totalAmount) {
@@ -415,91 +426,60 @@ export const handlePaystackWebhook = catchAsync(
   },
 );
 
+
+
 export const handleSquadWebhook = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
     const secret = process.env.SQUAD_SECRET_KEY;
-
-    if (!secret) {
-      return next(new AppError("Squad secret key is not configured", 500));
-    }
-
     const signature = req.headers["x-squad-signature"] as string | undefined;
 
-    if (!signature) {
-      return next(new AppError("Missing Squad signature", 400));
+    if (!secret || !signature || !req.rawBody) {
+      return next(new AppError("Invalid webhook request", 400));
     }
 
-    const rawBody = req.rawBody;
-
-    if (!rawBody) {
-      return next(
-        new AppError("Missing raw request body for webhook verification", 400),
-      );
-    }
-
-    if (
-      !verifyHmacSignature({
-        rawBody,
-        secret,
-        signature,
-      })
-    ) {
+    // Verify HMAC Signature (Ensure your verifyHmacSignature utility is correct)
+    if (!verifyHmacSignature({ rawBody: req.rawBody, secret, signature })) {
       return next(new AppError("Invalid Squad signature", 401));
     }
 
     const eventType = req.body?.event_type;
     const body = req.body?.body;
 
-    if (eventType !== "virtual_account.funded") {
+    // MODAL CHANGE: Listen for charge.success instead of virtual_account.funded
+    if (eventType !== "charge.success") {
       return res.sendStatus(200);
     }
 
-    const reference = body?.customer_identifier;
+    const reference = body?.transaction_ref; // Modal uses transaction_ref
 
     if (!reference) {
       return next(new AppError("Payment reference is missing", 400));
     }
 
-    const order = await Order.findOne({
-      paymentReference: reference,
-    });
+    const order = await Order.findOne({ paymentReference: reference });
 
-    if (!order) {
-      return next(
-        new AppError("Order not found for this payment reference", 404),
-      );
+    if (!order || order.paymentStatus === "paid") {
+      return res.sendStatus(200); // Already processed or not found
     }
 
-    if (order.paymentGateway !== "squad") {
-      return next(
-        new AppError("Order is not configured for Squad payments", 400),
-      );
-    }
-
-    const amountPaid = Number(body?.amount_paid) / 100;
-
-    if (!Number.isFinite(amountPaid) || amountPaid !== order.totalAmount) {
-      return next(new AppError("Paid amount does not match order amount", 400));
-    }
+    // MODAL CHANGE: Gateway Fee calculation (1.5%)
+    // body.transaction_amount is in Kobo.
+    const amountPaid = Number(body?.transaction_amount) / 100;
 
     const session = await mongoose.startSession();
     session.startTransaction();
 
     try {
       const pendingOrder = await Order.findById(order._id).session(session);
+      if (!pendingOrder) throw new AppError("Order not found", 404);
 
-      if (!pendingOrder) {
-        throw new AppError("Order not found for this payment reference", 404);
-      }
-
+      // Fulfill order (Tickets, Email, etc.)
       const fulfillment = await fulfillPaidOrder({
         session,
         order: pendingOrder,
         platformFeeTotal: pendingOrder.platformFeeTotal || 0,
         paystackFeeTotal: 0,
-        expectedNetSettlement:
-          pendingOrder.organizerPayoutAmount ||
-          pendingOrder.expectedNetSettlement,
+        expectedNetSettlement: pendingOrder.organizerPayoutAmount,
       });
 
       if (fulfillment.alreadyProcessed) {
@@ -508,20 +488,10 @@ export const handleSquadWebhook = catchAsync(
         return res.sendStatus(200);
       }
 
-      if (
-        !fulfillment.event ||
-        !fulfillment.createdTickets ||
-        !fulfillment.orderItems
-      ) {
-        throw new AppError(
-          "Payment fulfillment did not complete correctly",
-          500,
-        );
-      }
-
       await session.commitTransaction();
       session.endSession();
 
+      // Send Confirmation Email
       await sendTicketsEmail({
         order: pendingOrder,
         eventTitle: fulfillment.event.title,
@@ -529,49 +499,48 @@ export const handleSquadWebhook = catchAsync(
         orderItems: fulfillment.orderItems,
       });
 
-      const organizer = await Organizer.findById(fulfillment.event.organizerId)
-        .select("bankDetails")
-        .lean();
-
+      // --- PAYOUT LOGIC ---
+      const organizer = await Organizer.findById(
+        fulfillment.event.organizerId,
+      ).lean();
       const bankDetails = organizer?.bankDetails;
 
       if (
-        !bankDetails?.bankCode ||
-        !bankDetails.accountNumber ||
-        !bankDetails.accountName
+        bankDetails?.bankCode &&
+        bankDetails.accountNumber &&
+        bankDetails.accountName
       ) {
-        await Order.updateOne(
-          { _id: pendingOrder._id },
-          { settlementStatus: "failed" },
-        );
+        const accountName = String(bankDetails.accountName);
 
-        return res.sendStatus(200);
-      }
+        try {
+          const transferReference = `PAYOUT-${pendingOrder.paymentReference}`;
 
-      try {
-        const transferReference = `PAYOUT-${pendingOrder.paymentReference}`;
-        await SquadService.transferToOrganizer({
-          amount: Math.round(pendingOrder.organizerPayoutAmount * 100),
-          bank_code: bankDetails.bankCode,
-          account_number: bankDetails.accountNumber,
-          account_name: bankDetails.accountName,
-          transaction_reference: transferReference,
-        });
+          // Payout Amount (in Kobo)
+          await SquadService.transferToOrganizer({
+            amount: Math.round(pendingOrder.organizerPayoutAmount * 100),
+            bank_code: bankDetails.bankCode,
+            account_number: bankDetails.accountNumber,
+            account_name: accountName,
+            transaction_reference: transferReference,
+          });
 
-        await Order.updateOne(
-          { _id: pendingOrder._id },
-          {
-            settlementStatus: "settled",
-            settlementDate: new Date(),
-            settlementBatchId: transferReference,
-          },
-        );
-      } catch (transferError) {
-        console.error("Failed to transfer Squad payout:", transferError);
-        await Order.updateOne(
-          { _id: pendingOrder._id },
-          { settlementStatus: "failed" },
-        );
+          await Order.updateOne(
+            { _id: pendingOrder._id },
+            {
+              settlementStatus: "settled",
+              settlementDate: new Date(),
+              settlementBatchId: transferReference,
+              paidAt: new Date(),
+              paymentStatus: "paid",
+            },
+          );
+        } catch (transferError) {
+          console.error("Payout Failed:", transferError);
+          await Order.updateOne(
+            { _id: pendingOrder._id },
+            { settlementStatus: "failed" },
+          );
+        }
       }
 
       return res.sendStatus(200);
