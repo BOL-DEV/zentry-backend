@@ -28,8 +28,6 @@ export const createPurchaseSchema = z
       )
       .optional(),
 
-    buyerDob: z.string().trim().optional(),
-
     paymentGateway: z.literal("squad").default("squad"),
 
     items: z
