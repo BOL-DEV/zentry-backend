@@ -51,6 +51,7 @@ export const SquadService = {
     mobile_num: string;
     amount: number;
     transaction_ref: string;
+    dob: string;
   }) => {
     try {
       const response = await squadApi.post("/virtual-account", {
