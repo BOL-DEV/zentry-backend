@@ -1,7 +1,7 @@
 import axios from "axios";
 import { AppError } from "../utils/appError";
 
-const SQUAD_SECRET_KEY = process.env.SQUAD_SECRET_KEY;
+const SQUAD_SECRET_KEY = process.env.SQUAD_API_KEY;
 const SQUAD_BASE_URL = "https://sandbox-api-d.squadco.com";
 
 // Real https://api-d.squadco.com
