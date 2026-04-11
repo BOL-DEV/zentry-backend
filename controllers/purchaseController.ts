@@ -14,6 +14,7 @@ import {
   reserveTicketQuantities,
 } from "../services/orderReservationService";
 import { SquadService } from "../services/squadService";
+import { generateRandomDOB } from "../utils/dob";
 
 const PLATFORM_FEE_FLAT_NAIRA = 100;
 const PLATFORM_FEE_THRESHOLD_NAIRA = 3500;
@@ -46,8 +47,14 @@ export const createPurchase = catchAsync(
       return next(new AppError("Event not found", 404));
     }
 
-    const { buyerName, buyerEmail, buyerPhone, paymentGateway, items } =
-      createPurchaseSchema.parse(req.body);
+    const {
+      buyerName,
+      buyerEmail,
+      buyerPhone,
+      buyerDob,
+      paymentGateway,
+      items,
+    } = createPurchaseSchema.parse(req.body);
 
     const ticketTypeIds = items.map((item) => item.ticketTypeId);
 
@@ -134,11 +141,15 @@ export const createPurchase = catchAsync(
     if (paymentGateway === "squad") {
       if (!buyerPhone) {
         return next(
-          new AppError("Buyer phone number is required for Squad payments", 400),
+          new AppError(
+            "Buyer phone number is required for Squad payments",
+            400,
+          ),
         );
       }
 
       const { firstName, lastName } = splitBuyerName(buyerName);
+      const dobValue = buyerDob || generateRandomDOB();
       const squadAccount = await SquadService.createVirtualAccount({
         first_name: firstName,
         last_name: lastName,
@@ -146,6 +157,7 @@ export const createPurchase = catchAsync(
         mobile_num: buyerPhone,
         amount: Math.round(totalAmount * 100),
         transaction_ref: paymentReference,
+        dob: dobValue,
       });
 
       virtualAccountDetails = {

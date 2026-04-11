@@ -17,9 +17,8 @@ export const createPurchaseSchema = z
       .min(2, "Buyer name must be at least 2 characters")
       .max(100, "Buyer name must be at most 100 characters"),
 
-    buyerEmail: z
-      .email("Buyer email must be a valid email address"),
-      
+    buyerEmail: z.email("Buyer email must be a valid email address"),
+
     buyerPhone: z
       .string()
       .trim()
@@ -28,6 +27,8 @@ export const createPurchaseSchema = z
         "Buyer phone number must be a valid phone number",
       )
       .optional(),
+
+    buyerDob: z.string().trim().optional(),
 
     paymentGateway: z.literal("squad").default("squad"),
 
