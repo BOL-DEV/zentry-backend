@@ -171,14 +171,29 @@ export const createPurchase = catchAsync(
 
       await order.save({ session });
 
-      await reserveTicketQuantities({
-        eventId: event._id,
-        items: items.map((item) => ({
-          ticketTypeId: item.ticketTypeId,
-          quantity: item.quantity,
-        })),
-        session,
-      });
+      try {
+        await reserveTicketQuantities({
+          eventId: event._id,
+          items: items.map((item) => ({
+            ticketTypeId: item.ticketTypeId,
+            quantity: item.quantity,
+          })),
+          session,
+        });
+      } catch (reserveError) {
+        console.error("Reservation failed. Debug info:", {
+          ticketTypeIds,
+          items,
+          finalInventory: finalTicketTypes.map((tt) => ({
+            name: tt.name,
+            available: tt.quantityAvailable,
+            sold: tt.quantitySold,
+            reserved: tt.quantityReserved,
+            remaining: tt.quantityAvailable - tt.quantitySold - tt.quantityReserved,
+          })),
+        });
+        throw reserveError;
+      }
 
       await OrderItem.insertMany(
         orderItemsToCreate.map((item) => ({ ...item, orderId: order._id })),
