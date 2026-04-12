@@ -12,6 +12,7 @@ import {
   buildReservationExpiry,
   cleanupExpiredReservationsForEvent,
   reserveTicketQuantities,
+  syncReservedQuantitiesForEvent,
 } from "../services/orderReservationService";
 import { SquadService } from "../services/squadService";
 
@@ -129,6 +130,7 @@ export const createPurchase = catchAsync(
 
     try {
       await cleanupExpiredReservationsForEvent({ eventId: event._id, session });
+      await syncReservedQuantitiesForEvent({ eventId: event._id, session });
 
       // Re-check availability within transaction to prevent race conditions
       const finalTicketTypes = await TicketType.find({

@@ -107,7 +107,10 @@ export const cleanupExpiredReservationsForEvent = async ({
   const expiredOrders = await Order.find({
     eventId,
     paymentStatus: "pending",
-    reservationReleasedAt: { $exists: false },
+    $or: [
+      { reservationReleasedAt: { $exists: false } },
+      { reservationReleasedAt: null },
+    ],
     reservationExpiresAt: { $lte: new Date() },
   }).session(session);
 
@@ -124,4 +127,60 @@ export const cleanupExpiredReservationsForEvent = async ({
   return {
     releasedOrders,
   };
+};
+
+export const syncReservedQuantitiesForEvent = async ({
+  eventId,
+  session,
+}: {
+  eventId: Types.ObjectId;
+  session: ClientSession;
+}) => {
+  const now = new Date();
+
+  const activePendingOrders = await Order.find({
+    eventId,
+    paymentStatus: "pending",
+    $or: [
+      { reservationReleasedAt: { $exists: false } },
+      { reservationReleasedAt: null },
+    ],
+    reservationExpiresAt: { $gt: now },
+  })
+    .select("_id")
+    .session(session)
+    .lean();
+
+  const pendingOrderIds = activePendingOrders.map((order) => order._id);
+
+  await TicketType.updateMany(
+    { eventId },
+    { $set: { quantityReserved: 0 } },
+    { session },
+  );
+
+  if (!pendingOrderIds.length) {
+    return;
+  }
+
+  const reservedByTicketType = await OrderItem.aggregate<{
+    _id: Types.ObjectId;
+    reserved: number;
+  }>([
+    { $match: { orderId: { $in: pendingOrderIds } } },
+    {
+      $group: {
+        _id: "$ticketTypeId",
+        reserved: { $sum: "$quantity" },
+      },
+    },
+  ]).session(session);
+
+  for (const row of reservedByTicketType) {
+    await TicketType.updateOne(
+      { _id: row._id, eventId },
+      { $set: { quantityReserved: row.reserved } },
+      { session },
+    );
+  }
 };
