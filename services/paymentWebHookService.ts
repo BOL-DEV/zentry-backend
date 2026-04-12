@@ -437,7 +437,10 @@ export const handlePaystackWebhook = catchAsync(
 export const handleSquadWebhook = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
     const secret = process.env.SQUAD_API_KEY;
-    const signature = req.headers["x-squad-signature"] as string | undefined;
+    const signature =
+      (req.headers["x-squad-signature"] as string | undefined) ||
+      (req.headers["x-squad-verification"] as string | undefined) ||
+      (req.headers["x_squad_verification"] as string | undefined);
 
     console.log("[SquadWebhook] Incoming request", {
       hasSignature: Boolean(signature),
@@ -453,6 +456,13 @@ export const handleSquadWebhook = catchAsync(
       console.log("[SquadWebhook] Missing signature/rawBody details", {
         hasSignature: Boolean(signature),
         hasRawBody: Boolean(req.rawBody),
+        signatureHeaderCandidates: {
+          xSquadSignature: Boolean(req.headers["x-squad-signature"]),
+          xSquadVerification: Boolean(req.headers["x-squad-verification"]),
+          xSquadVerificationUnderscore: Boolean(
+            req.headers["x_squad_verification"],
+          ),
+        },
         headerKeys: Object.keys(req.headers || {}),
       });
       return next(new AppError("Invalid webhook request", 400));
