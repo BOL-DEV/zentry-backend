@@ -130,6 +130,28 @@ export const createPurchase = catchAsync(
     try {
       await cleanupExpiredReservationsForEvent({ eventId: event._id, session });
 
+      // Re-check availability within transaction to prevent race conditions
+      const finalTicketTypes = await TicketType.find({
+        _id: { $in: ticketTypeIds },
+        eventId: event._id,
+      }).session(session);
+
+      const finalTicketTypeMap = new Map(
+        finalTicketTypes.map((ticketType) => [ticketType._id.toString(), ticketType]),
+      );
+
+      for (const item of items) {
+        const ticketType = finalTicketTypeMap.get(item.ticketTypeId);
+        if (!ticketType) {
+          throw new AppError(`Ticket type not found`, 404);
+        }
+        const availableQuantity =
+          ticketType.quantityAvailable - ticketType.quantitySold - ticketType.quantityReserved;
+        if (item.quantity > availableQuantity) {
+          throw new AppError(`Not enough tickets for "${ticketType.name}"`, 409);
+        }
+      }
+
       const order = new Order({
         eventId: event._id,
         buyerName,
