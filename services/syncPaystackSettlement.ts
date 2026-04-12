@@ -100,10 +100,7 @@ export const syncPaystackSettlements = async (options?: {
 
           const order = await Order.findOne({
             paymentStatus: "paid",
-            $or: [
-              { paystackTransactionId: transactionId },
-              { paymentReference: reference },
-            ],
+            paymentReference: reference,
           });
 
           if (!order) {
@@ -134,11 +131,6 @@ export const syncPaystackSettlements = async (options?: {
             } else {
               delete order.settlementDate;
             }
-            hasChanged = true;
-          }
-
-          if (!order.paystackTransactionId && transactionId) {
-            order.paystackTransactionId = transactionId;
             hasChanged = true;
           }
 

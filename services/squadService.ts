@@ -1,13 +1,13 @@
 import axios from "axios";
 import { AppError } from "../utils/appError";
 
-const SQUAD_SECRET_KEY = process.env.SQUAD_API_KEY;
+const SQUAD_API_KEY = process.env.SQUAD_API_KEY;
 const SQUAD_BASE_URL = "https://sandbox-api-d.squadco.com";
 
 const squadApi = axios.create({
   baseURL: SQUAD_BASE_URL,
   headers: {
-    Authorization: `Bearer ${SQUAD_SECRET_KEY}`,
+    Authorization: `Bearer ${SQUAD_API_KEY}`,
     "Content-Type": "application/json",
   },
 });
@@ -40,6 +40,10 @@ export const SquadService = {
     customer_name: string;
     callback_url?: string;
   }) => {
+    if (!process.env.SQUAD_API_KEY) {
+      throw new AppError("SQUAD_API_KEY is not configured", 500);
+    }
+
     try {
       const response = await squadApi.post("/transaction/initiate", {
         amount: paymentData.amount,
@@ -69,6 +73,10 @@ export const SquadService = {
     account_name: string;
     transaction_reference: string;
   }) => {
+    if (!process.env.SQUAD_API_KEY) {
+      throw new AppError("SQUAD_API_KEY is not configured", 500);
+    }
+
     try {
       const response = await squadApi.post("/payout/transfer", {
         remark: "Zentry Organizer Payout",
