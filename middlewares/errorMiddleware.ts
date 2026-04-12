@@ -52,11 +52,18 @@ const sendErrorProd = (err: any, res: Response) => {
 
 export const globalErrorHandler = (
   err: any,
-  _req: Request,
+  req: Request,
   res: Response,
   next: NextFunction,
 ) => {
-  console.log(process.env.NODE_ENV);
+  console.error("[GlobalError]", {
+    method: req.method,
+    path: req.originalUrl,
+    statusCode: err?.statusCode || 500,
+    message: err?.message,
+    stack: err?.stack,
+    nodeEnv: process.env.NODE_ENV,
+  });
 
   let error = err;
 
