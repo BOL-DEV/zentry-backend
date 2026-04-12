@@ -441,114 +441,44 @@ export const handleSquadWebhook = catchAsync(
 
     const secret = process.env.SQUAD_API_KEY;
     const signature =
-      headerValue(req.headers["x-squad-encrypted-body"] as string | string[] | undefined) ||
-      headerValue(req.headers["x_squad_encrypted_body"] as string | string[] | undefined) ||
-      headerValue(req.headers["x-squad-signature"] as string | string[] | undefined) ||
-      headerValue(req.headers["x-squad-verification"] as string | string[] | undefined) ||
-      headerValue(req.headers["x_squad_verification"] as string | string[] | undefined);
-
-    console.log("[SquadWebhook] Incoming request", {
-      hasSignature: Boolean(signature),
-      hasRawBody: Boolean(req.rawBody),
-      contentType: req.headers["content-type"],
-    });
+      headerValue(
+        req.headers["x-squad-encrypted-body"] as string | string[] | undefined,
+      ) ||
+      headerValue(
+        req.headers["x_squad_encrypted_body"] as string | string[] | undefined,
+      );
 
     if (!secret) {
       return next(new AppError("SQUAD_API_KEY is not configured", 500));
     }
 
     if (!signature || !req.rawBody) {
-      console.log("[SquadWebhook] Missing signature/rawBody details", {
-        hasSignature: Boolean(signature),
-        hasRawBody: Boolean(req.rawBody),
-        signatureHeaderCandidates: {
-          xSquadSignature: Boolean(req.headers["x-squad-signature"]),
-          xSquadVerification: Boolean(req.headers["x-squad-verification"]),
-          xSquadVerificationUnderscore: Boolean(
-            req.headers["x_squad_verification"],
-          ),
-        },
-        headerKeys: Object.keys(req.headers || {}),
-      });
       return next(new AppError("Invalid webhook request", 400));
     }
 
-    const verificationCandidates: Array<{ source: string; payload: Buffer | string }> = [
-      { source: "rawBody", payload: req.rawBody },
-      { source: "jsonBody", payload: JSON.stringify(req.body ?? {}) },
-    ];
-
-    const verifiedSource = verificationCandidates.find((candidate) =>
-      verifyHmacSignature({
-        payload: candidate.payload,
-        secret,
-        signature,
-      }),
-    );
-
-    if (!verifiedSource) {
-      console.log("[SquadWebhook] Signature verification failed", {
-        triedSources: verificationCandidates.map((c) => c.source),
-        hasEncryptedBodyHeader: Boolean(
-          req.headers["x-squad-encrypted-body"] || req.headers["x_squad_encrypted_body"],
-        ),
-      });
+    if (!verifyHmacSignature({ payload: req.rawBody, secret, signature })) {
       return next(new AppError("Invalid Squad signature", 401));
     }
 
-    console.log("[SquadWebhook] Signature verified", {
-      source: verifiedSource.source,
-    });
-
     const payload = req.body ?? {};
-    const eventType =
-      payload?.event_type || payload?.event || payload?.Event || payload?.type;
-    const body = payload?.body || payload?.Body || payload?.data || {};
+    const eventType = payload?.Event;
+    const body = payload?.Body || {};
 
-    console.log("[SquadWebhook] Parsed payload", {
-      eventType,
-      hasBody: Boolean(body),
-      payloadKeys: Object.keys(payload || {}),
-    });
-
-    // Squad docs commonly send charge_successful, while some flows may send charge.success.
-    const isSuccessfulChargeEvent =
-      eventType === "charge.success" || eventType === "charge_successful";
-
-    if (!isSuccessfulChargeEvent) {
-      console.log("[SquadWebhook] Ignored event type", { eventType });
+    if (eventType !== "charge_successful") {
       return res.sendStatus(200);
     }
 
-    const reference =
-      body?.transaction_ref ||
-      body?.transaction_reference ||
-      body?.reference ||
-      payload?.TransactionRef;
+    const reference = body?.transaction_ref;
 
     if (!reference) {
-      console.log("[SquadWebhook] Missing reference", {
-        bodyKeys: Object.keys(body || {}),
-      });
       return next(new AppError("Payment reference is missing", 400));
     }
-
-    console.log("[SquadWebhook] Resolving order", { reference });
 
     const order = await Order.findOne({ paymentReference: reference });
 
     if (!order || order.paymentStatus === "paid") {
-      console.log("[SquadWebhook] Order not found or already paid", {
-        reference,
-        found: Boolean(order),
-        paymentStatus: order?.paymentStatus,
-      });
       return res.sendStatus(200); // Already processed or not found
     }
-
-    // MODAL CHANGE: Gateway Fee calculation (1.5%)
-    // body.transaction_amount is in Kobo.
-    const amountPaid = Number(body?.transaction_amount) / 100;
 
     const session = await mongoose.startSession();
     session.startTransaction();
@@ -569,19 +499,11 @@ export const handleSquadWebhook = catchAsync(
       if (fulfillment.alreadyProcessed) {
         await session.commitTransaction();
         session.endSession();
-        console.log("[SquadWebhook] Order already processed", {
-          orderId: String(order._id),
-        });
         return res.sendStatus(200);
       }
 
       await session.commitTransaction();
       session.endSession();
-
-      console.log("[SquadWebhook] Order fulfilled", {
-        orderId: String(pendingOrder._id),
-        paymentReference: pendingOrder.paymentReference,
-      });
 
       // Send Confirmation Email
       await sendTicketsEmail({
@@ -626,10 +548,6 @@ export const handleSquadWebhook = catchAsync(
               paymentStatus: "paid",
             },
           );
-          console.log("[SquadWebhook] Payout settled", {
-            orderId: String(pendingOrder._id),
-            transferReference,
-          });
         } catch (transferError) {
           console.error("Payout Failed:", transferError);
           await Order.updateOne(

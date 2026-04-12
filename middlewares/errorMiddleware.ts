@@ -52,19 +52,10 @@ const sendErrorProd = (err: any, res: Response) => {
 
 export const globalErrorHandler = (
   err: any,
-  req: Request,
+  _req: Request,
   res: Response,
   next: NextFunction,
 ) => {
-  console.error("[GlobalError]", {
-    method: req.method,
-    path: req.originalUrl,
-    statusCode: err?.statusCode || 500,
-    message: err?.message,
-    stack: err?.stack,
-    nodeEnv: process.env.NODE_ENV,
-  });
-
   let error = err;
 
   if (error.name === "CastError") {
