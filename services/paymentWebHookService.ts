@@ -43,11 +43,11 @@ type FulfilledOrderResult =
     };
 
 const verifyHmacSignature = ({
-  rawBody,
+  payload,
   secret,
   signature,
 }: {
-  rawBody: Buffer;
+  payload: Buffer | string;
   secret: string;
   signature: string;
 }) => {
@@ -59,7 +59,7 @@ const verifyHmacSignature = ({
 
   const computedSignature = crypto
     .createHmac("sha512", secret)
-    .update(rawBody)
+    .update(payload)
     .digest("hex");
 
   const provided = Buffer.from(normalizedSignature, "hex");
@@ -436,11 +436,16 @@ export const handlePaystackWebhook = catchAsync(
 
 export const handleSquadWebhook = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
+    const headerValue = (value: string | string[] | undefined) =>
+      Array.isArray(value) ? value[0] : value;
+
     const secret = process.env.SQUAD_API_KEY;
     const signature =
-      (req.headers["x-squad-signature"] as string | undefined) ||
-      (req.headers["x-squad-verification"] as string | undefined) ||
-      (req.headers["x_squad_verification"] as string | undefined);
+      headerValue(req.headers["x-squad-encrypted-body"] as string | string[] | undefined) ||
+      headerValue(req.headers["x_squad_encrypted_body"] as string | string[] | undefined) ||
+      headerValue(req.headers["x-squad-signature"] as string | string[] | undefined) ||
+      headerValue(req.headers["x-squad-verification"] as string | string[] | undefined) ||
+      headerValue(req.headers["x_squad_verification"] as string | string[] | undefined);
 
     console.log("[SquadWebhook] Incoming request", {
       hasSignature: Boolean(signature),
@@ -468,15 +473,37 @@ export const handleSquadWebhook = catchAsync(
       return next(new AppError("Invalid webhook request", 400));
     }
 
-    // Verify HMAC Signature (Ensure your verifyHmacSignature utility is correct)
-    if (!verifyHmacSignature({ rawBody: req.rawBody, secret, signature })) {
-      console.log("[SquadWebhook] Signature verification failed");
+    const verificationCandidates: Array<{ source: string; payload: Buffer | string }> = [
+      { source: "rawBody", payload: req.rawBody },
+      { source: "jsonBody", payload: JSON.stringify(req.body ?? {}) },
+    ];
+
+    const verifiedSource = verificationCandidates.find((candidate) =>
+      verifyHmacSignature({
+        payload: candidate.payload,
+        secret,
+        signature,
+      }),
+    );
+
+    if (!verifiedSource) {
+      console.log("[SquadWebhook] Signature verification failed", {
+        triedSources: verificationCandidates.map((c) => c.source),
+        hasEncryptedBodyHeader: Boolean(
+          req.headers["x-squad-encrypted-body"] || req.headers["x_squad_encrypted_body"],
+        ),
+      });
       return next(new AppError("Invalid Squad signature", 401));
     }
 
+    console.log("[SquadWebhook] Signature verified", {
+      source: verifiedSource.source,
+    });
+
     const payload = req.body ?? {};
-    const eventType = payload?.event_type || payload?.event || payload?.type;
-    const body = payload?.body || payload?.data || {};
+    const eventType =
+      payload?.event_type || payload?.event || payload?.Event || payload?.type;
+    const body = payload?.body || payload?.Body || payload?.data || {};
 
     console.log("[SquadWebhook] Parsed payload", {
       eventType,
@@ -484,14 +511,20 @@ export const handleSquadWebhook = catchAsync(
       payloadKeys: Object.keys(payload || {}),
     });
 
-    // MODAL CHANGE: Listen for charge.success instead of virtual_account.funded
-    if (eventType !== "charge.success") {
+    // Squad docs commonly send charge_successful, while some flows may send charge.success.
+    const isSuccessfulChargeEvent =
+      eventType === "charge.success" || eventType === "charge_successful";
+
+    if (!isSuccessfulChargeEvent) {
       console.log("[SquadWebhook] Ignored event type", { eventType });
       return res.sendStatus(200);
     }
 
     const reference =
-      body?.transaction_ref || body?.transaction_reference || body?.reference;
+      body?.transaction_ref ||
+      body?.transaction_reference ||
+      body?.reference ||
+      payload?.TransactionRef;
 
     if (!reference) {
       console.log("[SquadWebhook] Missing reference", {
