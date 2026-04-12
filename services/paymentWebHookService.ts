@@ -51,12 +51,18 @@ const verifyHmacSignature = ({
   secret: string;
   signature: string;
 }) => {
+  const normalizedSignature = signature.trim().replace(/^sha512=/i, "");
+
+  if (!/^[a-fA-F0-9]{128}$/.test(normalizedSignature)) {
+    return false;
+  }
+
   const computedSignature = crypto
     .createHmac("sha512", secret)
     .update(rawBody)
     .digest("hex");
 
-  const provided = Buffer.from(signature, "hex");
+  const provided = Buffer.from(normalizedSignature, "hex");
   const expected = Buffer.from(computedSignature, "hex");
 
   if (provided.length !== expected.length) {
@@ -433,6 +439,12 @@ export const handleSquadWebhook = catchAsync(
     const secret = process.env.SQUAD_API_KEY;
     const signature = req.headers["x-squad-signature"] as string | undefined;
 
+    console.log("[SquadWebhook] Incoming request", {
+      hasSignature: Boolean(signature),
+      hasRawBody: Boolean(req.rawBody),
+      contentType: req.headers["content-type"],
+    });
+
     if (!secret) {
       return next(new AppError("SQUAD_API_KEY is not configured", 500));
     }
@@ -443,26 +455,46 @@ export const handleSquadWebhook = catchAsync(
 
     // Verify HMAC Signature (Ensure your verifyHmacSignature utility is correct)
     if (!verifyHmacSignature({ rawBody: req.rawBody, secret, signature })) {
+      console.log("[SquadWebhook] Signature verification failed");
       return next(new AppError("Invalid Squad signature", 401));
     }
 
-    const eventType = req.body?.event_type;
-    const body = req.body?.body;
+    const payload = req.body ?? {};
+    const eventType = payload?.event_type || payload?.event || payload?.type;
+    const body = payload?.body || payload?.data || {};
+
+    console.log("[SquadWebhook] Parsed payload", {
+      eventType,
+      hasBody: Boolean(body),
+      payloadKeys: Object.keys(payload || {}),
+    });
 
     // MODAL CHANGE: Listen for charge.success instead of virtual_account.funded
     if (eventType !== "charge.success") {
+      console.log("[SquadWebhook] Ignored event type", { eventType });
       return res.sendStatus(200);
     }
 
-    const reference = body?.transaction_ref; // Modal uses transaction_ref
+    const reference =
+      body?.transaction_ref || body?.transaction_reference || body?.reference;
 
     if (!reference) {
+      console.log("[SquadWebhook] Missing reference", {
+        bodyKeys: Object.keys(body || {}),
+      });
       return next(new AppError("Payment reference is missing", 400));
     }
+
+    console.log("[SquadWebhook] Resolving order", { reference });
 
     const order = await Order.findOne({ paymentReference: reference });
 
     if (!order || order.paymentStatus === "paid") {
+      console.log("[SquadWebhook] Order not found or already paid", {
+        reference,
+        found: Boolean(order),
+        paymentStatus: order?.paymentStatus,
+      });
       return res.sendStatus(200); // Already processed or not found
     }
 
@@ -489,11 +521,19 @@ export const handleSquadWebhook = catchAsync(
       if (fulfillment.alreadyProcessed) {
         await session.commitTransaction();
         session.endSession();
+        console.log("[SquadWebhook] Order already processed", {
+          orderId: String(order._id),
+        });
         return res.sendStatus(200);
       }
 
       await session.commitTransaction();
       session.endSession();
+
+      console.log("[SquadWebhook] Order fulfilled", {
+        orderId: String(pendingOrder._id),
+        paymentReference: pendingOrder.paymentReference,
+      });
 
       // Send Confirmation Email
       await sendTicketsEmail({
@@ -538,6 +578,10 @@ export const handleSquadWebhook = catchAsync(
               paymentStatus: "paid",
             },
           );
+          console.log("[SquadWebhook] Payout settled", {
+            orderId: String(pendingOrder._id),
+            transferReference,
+          });
         } catch (transferError) {
           console.error("Payout Failed:", transferError);
           await Order.updateOne(
