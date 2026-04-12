@@ -119,7 +119,7 @@ export const createPurchase = catchAsync(
         email: buyerEmail,
         transaction_ref: paymentReference,
         customer_name: buyerName,
-        callback_url: `${process.env.FRONTEND_URL}/payment-success`, // Redirect after payment
+        callback_url: `${process.env.FRONTEND_URL}`, // Redirect after payment
       });
 
       checkoutUrl = squadPayment.checkout_url;
