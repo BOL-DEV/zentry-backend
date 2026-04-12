@@ -430,10 +430,14 @@ export const handlePaystackWebhook = catchAsync(
 
 export const handleSquadWebhook = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
-    const secret = process.env.SQUAD_SECRET_KEY;
+    const secret = process.env.SQUAD_API_KEY;
     const signature = req.headers["x-squad-signature"] as string | undefined;
 
-    if (!secret || !signature || !req.rawBody) {
+    if (!secret) {
+      return next(new AppError("SQUAD_API_KEY is not configured", 500));
+    }
+
+    if (!signature || !req.rawBody) {
       return next(new AppError("Invalid webhook request", 400));
     }
 

@@ -114,12 +114,18 @@ export const createPurchase = catchAsync(
 
     // --- SQUAD MODAL INITIATION ---
     if (paymentGateway === "squad") {
+      if (!process.env.SQUAD_CHECKOUT_REDIRECT_URL) {
+        return next(
+          new AppError("SQUAD_CHECKOUT_REDIRECT_URL is not configured", 500),
+        );
+      }
+
       const squadPayment = await SquadService.initiatePayment({
         amount: Math.round(totalAmount * 100), // Convert to Kobo
         email: buyerEmail,
         transaction_ref: paymentReference,
         customer_name: buyerName,
-        callback_url: `${process.env.FRONTEND_URL}`, // Redirect after payment
+        callback_url: process.env.SQUAD_CHECKOUT_REDIRECT_URL,
       });
 
       checkoutUrl = squadPayment.checkout_url;
@@ -139,7 +145,10 @@ export const createPurchase = catchAsync(
       }).session(session);
 
       const finalTicketTypeMap = new Map(
-        finalTicketTypes.map((ticketType) => [ticketType._id.toString(), ticketType]),
+        finalTicketTypes.map((ticketType) => [
+          ticketType._id.toString(),
+          ticketType,
+        ]),
       );
 
       for (const item of items) {
@@ -148,9 +157,14 @@ export const createPurchase = catchAsync(
           throw new AppError(`Ticket type not found`, 404);
         }
         const availableQuantity =
-          ticketType.quantityAvailable - ticketType.quantitySold - ticketType.quantityReserved;
+          ticketType.quantityAvailable -
+          ticketType.quantitySold -
+          ticketType.quantityReserved;
         if (item.quantity > availableQuantity) {
-          throw new AppError(`Not enough tickets for "${ticketType.name}"`, 409);
+          throw new AppError(
+            `Not enough tickets for "${ticketType.name}"`,
+            409,
+          );
         }
       }
 
@@ -167,7 +181,7 @@ export const createPurchase = catchAsync(
         reservationExpiresAt,
         platformFeeTotal,
         squadTransferFee,
-        squadGatewayFee, // Tracking the 1.5% here
+        squadGatewayFee,
         organizerPayoutAmount,
       });
 
@@ -191,7 +205,8 @@ export const createPurchase = catchAsync(
             available: tt.quantityAvailable,
             sold: tt.quantitySold,
             reserved: tt.quantityReserved,
-            remaining: tt.quantityAvailable - tt.quantitySold - tt.quantityReserved,
+            remaining:
+              tt.quantityAvailable - tt.quantitySold - tt.quantityReserved,
           })),
         });
         throw reserveError;
