@@ -66,7 +66,7 @@ export const createPurchase = catchAsync(
       }
 
       const availableQuantity =
-        ticketType.quantityAvailable - ticketType.quantitySold;
+        ticketType.quantityAvailable - ticketType.quantitySold - ticketType.quantityReserved;
       if (item.quantity > availableQuantity) {
         throw new AppError(`Not enough tickets for "${ticketType.name}"`, 400);
       }
