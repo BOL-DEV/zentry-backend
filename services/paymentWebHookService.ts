@@ -450,6 +450,11 @@ export const handleSquadWebhook = catchAsync(
     }
 
     if (!signature || !req.rawBody) {
+      console.log("[SquadWebhook] Missing signature/rawBody details", {
+        hasSignature: Boolean(signature),
+        hasRawBody: Boolean(req.rawBody),
+        headerKeys: Object.keys(req.headers || {}),
+      });
       return next(new AppError("Invalid webhook request", 400));
     }
 
