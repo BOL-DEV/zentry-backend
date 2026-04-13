@@ -91,12 +91,18 @@ export const protect = catchAsync(
 
 export const restrictTo = (...roles: string[]) => {
   return (req: Request, _res: Response, next: NextFunction) => {
-    if (!req.user || !roles.includes(req.user.role)) {
-      return next(new AppError("You do not have permission", 403));
+    // Dashboard users (organizer/staff)
+    if (req.user && roles.includes(req.user.role)) {
+      return next();
     }
 
-    next();
-  };
+    // Admin users
+    if (req.admin && roles.includes("admin")) {
+      return next();
+    }
+
+    return next(new AppError("You do not have permission", 403));
+  };;
 };
 
 type AdminJwtPayload = {
