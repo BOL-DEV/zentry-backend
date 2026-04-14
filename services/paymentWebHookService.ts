@@ -1,5 +1,4 @@
 import crypto from "crypto";
-import axios from "axios";
 import mongoose from "mongoose";
 import { Request, Response, NextFunction } from "express";
 import Order from "../models/order";
@@ -13,8 +12,6 @@ import { catchAsync } from "../utils/catchAsync";
 import { generateTicketCode } from "../utils/generateTicketCode";
 import { sendEmail } from "../utils/email";
 import { generateTicketEmailTemplate } from "../utils/ticketEmailTemplate";
-import { calculateOrderPlatformFee } from "../utils/platformFee";
-import { calculatePaystackFee } from "../utils/paystackFee";
 import { releaseOrderReservation } from "./orderReservationService";
 import { SquadService } from "./squadService";
 
@@ -140,16 +137,12 @@ const fulfillPaidOrder = async ({
   session,
   order,
   platformFeeTotal,
-  paystackFeeTotal,
-  expectedNetSettlement,
-  paystackTransactionId,
+  organizerPayoutAmount,
 }: {
   session: mongoose.ClientSession;
   order: typeof Order.prototype;
   platformFeeTotal: number;
-  paystackFeeTotal: number;
-  expectedNetSettlement: number;
-  paystackTransactionId?: string;
+  organizerPayoutAmount: number;
 }): Promise<FulfilledOrderResult> => {
   if (order.paymentStatus === "paid") {
     return {
@@ -271,14 +264,9 @@ const fulfillPaidOrder = async ({
   order.paymentStatus = "paid";
   order.paidAt = new Date();
   order.platformFeeTotal = platformFeeTotal;
-  order.paystackFeeTotal = paystackFeeTotal;
-  order.expectedNetSettlement = expectedNetSettlement;
+  order.organizerPayoutAmount = organizerPayoutAmount;
   order.settlementStatus = "pending";
   order.reservationReleasedAt = new Date();
-
-  if (paystackTransactionId) {
-    order.paystackTransactionId = paystackTransactionId;
-  }
 
   await order.save({ session });
 
@@ -289,150 +277,6 @@ const fulfillPaidOrder = async ({
     createdTickets,
   };
 };
-
-export const handlePaystackWebhook = catchAsync(
-  async (req: Request, res: Response, next: NextFunction) => {
-    const secret = process.env.PAYSTACK_SECRET_KEY;
-
-    if (!secret) {
-      return next(new AppError("Paystack secret key is not configured", 500));
-    }
-
-    const signature = req.headers["x-paystack-signature"] as string | undefined;
-
-    if (!signature) {
-      return next(new AppError("Missing Paystack signature", 400));
-    }
-
-    const rawBody = req.rawBody;
-
-    if (!rawBody) {
-      return next(
-        new AppError("Missing raw request body for webhook verification", 400),
-      );
-    }
-
-    const computedSignature = crypto
-      .createHmac("sha512", secret)
-      .update(rawBody)
-      .digest("hex");
-
-    if (computedSignature !== signature) {
-      return next(new AppError("Invalid Paystack signature", 401));
-    }
-
-    const payload = JSON.parse(rawBody.toString("utf8"));
-    const eventType = payload.event;
-
-    if (eventType !== "charge.success") {
-      return res.status(200).json({
-        status: "success",
-        message: "Webhook received and ignored",
-      });
-    }
-
-    const paymentData = payload.data;
-    const reference = paymentData?.reference;
-
-    if (!reference) {
-      return next(new AppError("Payment reference is missing", 400));
-    }
-
-    // Server-side verify with Paystack before fulfilling
-    const verifyResponse = await axios.get(
-      `https://api.paystack.co/transaction/verify/${reference}`,
-      {
-        headers: {
-          Authorization: `Bearer ${secret}`,
-        },
-        timeout: 15000,
-      },
-    );
-
-    const verified = verifyResponse.data?.data;
-
-    if (!verified || verified.status !== "success") {
-      return next(new AppError("Payment verification failed", 400));
-    }
-
-    const session = await mongoose.startSession();
-    session.startTransaction();
-
-    try {
-      const order = await Order.findOne({
-        paymentReference: reference,
-      }).session(session);
-
-      if (!order) {
-        throw new AppError("Order not found for this payment reference", 404);
-      }
-
-      const platformFeeTotal = calculateOrderPlatformFee(
-        (
-          await OrderItem.find({ orderId: order._id })
-            .session(session)
-            .select("unitPrice quantity")
-            .lean()
-        ).map((item) => ({
-          unitPrice: item.unitPrice,
-          quantity: item.quantity,
-        })),
-      );
-
-      const paystackFeeTotal = calculatePaystackFee(order.totalAmount);
-      const expectedNetSettlement = Math.max(
-        order.totalAmount - platformFeeTotal - paystackFeeTotal,
-        0,
-      );
-
-      const fulfillment = await fulfillPaidOrder({
-        session,
-        order,
-        platformFeeTotal,
-        paystackFeeTotal,
-        expectedNetSettlement,
-        paystackTransactionId: String(verified.id ?? ""),
-      });
-
-      if (fulfillment.alreadyProcessed) {
-        await session.commitTransaction();
-        session.endSession();
-
-        return res.status(200).json({
-          status: "success",
-          message: "Order already processed",
-        });
-      }
-
-      const paidAmount = Number(verified.amount) / 100;
-
-      if (paidAmount !== order.totalAmount) {
-        throw new AppError("Paid amount does not match order amount", 400);
-      }
-
-      await session.commitTransaction();
-      session.endSession();
-
-      await sendTicketsEmail({
-        order,
-        eventTitle: fulfillment.event.title,
-        createdTickets: fulfillment.createdTickets,
-        orderItems: fulfillment.orderItems,
-      });
-
-      return res.status(200).json({
-        status: "success",
-        message: "Payment confirmed and tickets generated successfully",
-      });
-    } catch (error) {
-      await session.abortTransaction();
-      session.endSession();
-      throw error;
-    }
-  },
-);
-
-
 
 export const handleSquadWebhook = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
@@ -492,8 +336,7 @@ export const handleSquadWebhook = catchAsync(
         session,
         order: pendingOrder,
         platformFeeTotal: pendingOrder.platformFeeTotal || 0,
-        paystackFeeTotal: 0,
-        expectedNetSettlement: pendingOrder.organizerPayoutAmount,
+        organizerPayoutAmount: pendingOrder.organizerPayoutAmount || 0,
       });
 
       if (fulfillment.alreadyProcessed) {
@@ -519,6 +362,19 @@ export const handleSquadWebhook = catchAsync(
       ).lean();
       const bankDetails = organizer?.bankDetails;
 
+      if ((pendingOrder.organizerPayoutAmount || 0) <= 0) {
+        await Order.updateOne(
+          { _id: pendingOrder._id },
+          {
+            settlementStatus: "settled",
+            settlementDate: new Date(),
+            settlementBatchId: `NO_PAYOUT-${pendingOrder.paymentReference}`,
+          },
+        );
+
+        return res.sendStatus(200);
+      }
+
       if (
         bankDetails?.bankCode &&
         bankDetails.accountNumber &&
@@ -528,6 +384,14 @@ export const handleSquadWebhook = catchAsync(
 
         try {
           const transferReference = `PAYOUT-${pendingOrder.paymentReference}`;
+
+          await Order.updateOne(
+            { _id: pendingOrder._id, settlementStatus: { $ne: "settled" } },
+            {
+              settlementStatus: "processing",
+              settlementBatchId: transferReference,
+            },
+          );
 
           // Payout Amount (in Kobo)
           await SquadService.transferToOrganizer({
@@ -544,8 +408,6 @@ export const handleSquadWebhook = catchAsync(
               settlementStatus: "settled",
               settlementDate: new Date(),
               settlementBatchId: transferReference,
-              paidAt: new Date(),
-              paymentStatus: "paid",
             },
           );
         } catch (transferError) {

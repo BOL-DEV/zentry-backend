@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { syncPaystackSettlements } from "../services/syncPaystackSettlement";
+import { syncSquadSettlements } from "../services/syncSquadSettlement";
 import { AppError } from "../utils/appError";
 import { catchAsync } from "../utils/catchAsync";
 
@@ -27,7 +27,7 @@ export const runAdminSettlementSync = catchAsync(
     const from = new Date(now);
     from.setDate(from.getDate() - 7);
 
-    const result = await syncPaystackSettlements({
+    const result = await syncSquadSettlements({
       from,
       to: now,
     });

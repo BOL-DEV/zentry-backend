@@ -16,6 +16,7 @@ export interface IOrder {
   paidAt?: Date;
 
   // Fee Tracking
+  squadTransferFee: number;
   squadGatewayFee: number;
   platformFeeTotal: number;
   organizerPayoutAmount: number;
@@ -81,6 +82,14 @@ const OrderSchema = new Schema<IOrder>(
     },
     paidAt: Date,
     platformFeeTotal: {
+      type: Number,
+      default: 0,
+    },
+    squadGatewayFee: {
+      type: Number,
+      default: 0,
+    },
+    squadTransferFee: {
       type: Number,
       default: 0,
     },
