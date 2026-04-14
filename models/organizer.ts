@@ -56,10 +56,6 @@ const organizerSchema = new Schema(
       required: [true, "Organizer location is required"],
       trim: true,
     },
-    paystackSubaccountCode: {
-      type: String,
-      trim: true,
-    },
     bankDetails: {
       bankName: {
         type: String,

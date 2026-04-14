@@ -6,13 +6,13 @@ import {
   getScannerSummary,
   getEventSettlementSummary,
   getOrganizerSettlementSummary,
+  syncOrganizerSettlements,
 } from "../controllers/organizerDashboardController";
 import { createGalleryItem } from "../controllers/galleryController";
 import { createEvent } from "../controllers/eventController";
 import { createTicketType } from "../controllers/ticketTypeController";
 import { verifyTicketForEvent } from "../controllers/ticketController";
 import { protect, restrictTo } from "../middlewares/protect";
-import { syncPaystackSettlements } from "../services/syncPaystackSettlement";
 import {
   getStaffSessions,
   logoutAllStaffSessions,
@@ -24,28 +24,17 @@ const router = Router();
 router.use(protect);
 router.use(restrictTo("organizer"));
 
-router
-  .route("/summary")
-  .get(getOrganizerDashboardSummary);
+router.route("/summary").get(getOrganizerDashboardSummary);
 
-router
-  .route("/events")
-  .get(getOrganizerEventStats)
-  .post(createEvent);
+router.route("/events").get(getOrganizerEventStats).post(createEvent);
 
 router.route("/gallery").post(createGalleryItem);
 
-router
-  .route("/overall-settlement-summary")
-  .get(getOrganizerSettlementSummary);
+router.route("/overall-settlement-summary").get(getOrganizerSettlementSummary);
 
-router
-  .route("/events/:eventId/ticket-types")
-  .post(createTicketType);
+router.route("/events/:eventId/ticket-types").post(createTicketType);
 
-router
-  .route("/events/:eventId/attendees")
-  .get(getEventAttendees);
+router.route("/events/:eventId/attendees").get(getEventAttendees);
 
 router
   .route("/events/:eventId/scanner-summary")
@@ -55,9 +44,7 @@ router
   .route("/events/:eventId/verify-ticket")
   .post(restrictTo("organizer", "staff"), verifyTicketForEvent);
 
-router
-  .route("/sync-settlements")
-  .post(syncPaystackSettlements);
+router.route("/sync-settlements").post(syncOrganizerSettlements);
 
 router
   .route("/events/:eventId/settlement-summary")

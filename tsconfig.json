@@ -6,8 +6,8 @@
 
     // Target environment
     "target": "ES2022",
-    "module": "CommonJS", // Express + Node works best with CommonJS
-    "moduleResolution": "Node",
+    "module": "Node16",
+    "moduleResolution": "Node16",
     "esModuleInterop": true, // allows 'import express from "express";'
     "forceConsistentCasingInFileNames": true,
 

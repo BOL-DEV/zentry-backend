@@ -30,11 +30,6 @@ export const createOrganizerSchema = z.object({
     .min(7, "Contact phone must be at least 7 characters"),
 
   location: z.string().trim().min(2, "Location is required"),
-
-  paystackSubaccountCode: z
-    .string()
-    .trim()
-    .min(5, "Paystack subaccount code is required"),
 });
 
 export const organizerSlugParamSchema = z.object({

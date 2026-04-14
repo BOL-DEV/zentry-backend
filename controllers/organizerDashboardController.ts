@@ -7,6 +7,7 @@ import { TicketType } from "../models/ticketTypes";
 import { eventIdParamSchema } from "../validations/event.schema";
 import { AppError } from "../utils/appError";
 import { catchAsync } from "../utils/catchAsync";
+import { syncSquadSettlements } from "../services/syncSquadSettlement";
 
 export const getOrganizerDashboardSummary = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
@@ -266,15 +267,16 @@ export const getEventSettlementSummary = catchAsync(
           _id: null,
           confirmedSales: { $sum: "$totalAmount" },
           platformFees: { $sum: "$platformFeeTotal" },
-          paystackFees: { $sum: "$paystackFeeTotal" },
-          expectedNetSettlement: { $sum: "$expectedNetSettlement" },
+          squadGatewayFees: { $sum: "$squadGatewayFee" },
+          squadTransferFees: { $sum: "$squadTransferFee" },
+          organizerPayoutAmount: { $sum: "$organizerPayoutAmount" },
           totalPaidOrders: { $sum: 1 },
 
           pendingSettlement: {
             $sum: {
               $cond: [
                 { $in: ["$settlementStatus", ["pending", "processing"]] },
-                "$expectedNetSettlement",
+                "$organizerPayoutAmount",
                 0,
               ],
             },
@@ -284,7 +286,7 @@ export const getEventSettlementSummary = catchAsync(
             $sum: {
               $cond: [
                 { $eq: ["$settlementStatus", "settled"] },
-                "$expectedNetSettlement",
+                "$organizerPayoutAmount",
                 0,
               ],
             },
@@ -298,8 +300,9 @@ export const getEventSettlementSummary = catchAsync(
       pendingSettlement: 0,
       settled: 0,
       platformFees: 0,
-      paystackFees: 0,
-      expectedNetSettlement: 0,
+      squadGatewayFees: 0,
+      squadTransferFees: 0,
+      organizerPayoutAmount: 0,
       totalPaidOrders: 0,
     };
 
@@ -321,7 +324,7 @@ export const getEventSettlementSummary = catchAsync(
       paymentStatus: "paid",
     })
       .select(
-        "buyerName buyerEmail paymentReference totalAmount platformFeeTotal paystackFeeTotal expectedNetSettlement settlementStatus paidAt settlementDate",
+        "buyerName buyerEmail paymentReference totalAmount platformFeeTotal squadGatewayFee squadTransferFee organizerPayoutAmount settlementStatus paidAt settlementDate",
       )
       .sort({ paidAt: -1, createdAt: -1 })
       .skip(skip)
@@ -353,11 +356,45 @@ export const getEventSettlementSummary = catchAsync(
           paymentReference: order.paymentReference,
           grossAmount: order.totalAmount,
           platformFeeTotal: order.platformFeeTotal,
+          squadGatewayFee: order.squadGatewayFee || 0,
+          squadTransferFee: order.squadTransferFee || 0,
+          organizerPayoutAmount: order.organizerPayoutAmount || 0,
           settlementStatus: order.settlementStatus,
           paidAt: order.paidAt,
           settlementDate: order.settlementDate,
         })),
       },
+    });
+  },
+);
+
+export const syncOrganizerSettlements = catchAsync(
+  async (req: Request, res: Response, next: NextFunction) => {
+    if (!req.user) {
+      return next(new AppError("You are not logged in", 401));
+    }
+
+    const organizerEvents = await Event.find({
+      organizerId: req.user.organizerId,
+    })
+      .select("_id")
+      .lean();
+
+    const eventIds = organizerEvents.map((event) => event._id);
+
+    const now = new Date();
+    const from = new Date(now);
+    from.setDate(from.getDate() - 7);
+
+    const result = await syncSquadSettlements({
+      from,
+      to: now,
+      eventIds,
+    });
+
+    res.status(200).json({
+      status: "success",
+      data: result,
     });
   },
 );
@@ -387,8 +424,9 @@ export const getOrganizerSettlementSummary = catchAsync(
             pendingSettlement: 0,
             settled: 0,
             platformFees: 0,
-            paystackFees: 0,
-            expectedNetSettlement: 0,
+            squadGatewayFees: 0,
+            squadTransferFees: 0,
+            organizerPayoutAmount: 0,
             totalPaidOrders: 0,
             totalEventsWithSales: 0,
           },
@@ -410,15 +448,16 @@ export const getOrganizerSettlementSummary = catchAsync(
           _id: null,
           confirmedSales: { $sum: "$totalAmount" },
           platformFees: { $sum: "$platformFeeTotal" },
-          paystackFees: { $sum: "$paystackFeeTotal" },
-          expectedNetSettlement: { $sum: "$expectedNetSettlement" },
+          squadGatewayFees: { $sum: "$squadGatewayFee" },
+          squadTransferFees: { $sum: "$squadTransferFee" },
+          organizerPayoutAmount: { $sum: "$organizerPayoutAmount" },
           totalPaidOrders: { $sum: 1 },
 
           pendingSettlement: {
             $sum: {
               $cond: [
                 { $in: ["$settlementStatus", ["pending", "processing"]] },
-                "$expectedNetSettlement",
+                "$organizerPayoutAmount",
                 0,
               ],
             },
@@ -428,7 +467,7 @@ export const getOrganizerSettlementSummary = catchAsync(
             $sum: {
               $cond: [
                 { $eq: ["$settlementStatus", "settled"] },
-                "$expectedNetSettlement",
+                "$organizerPayoutAmount",
                 0,
               ],
             },
@@ -449,15 +488,16 @@ export const getOrganizerSettlementSummary = catchAsync(
           _id: "$eventId",
           confirmedSales: { $sum: "$totalAmount" },
           platformFees: { $sum: "$platformFeeTotal" },
-          paystackFees: { $sum: "$paystackFeeTotal" },
-          expectedNetSettlement: { $sum: "$expectedNetSettlement" },
+          squadGatewayFees: { $sum: "$squadGatewayFee" },
+          squadTransferFees: { $sum: "$squadTransferFee" },
+          organizerPayoutAmount: { $sum: "$organizerPayoutAmount" },
           totalPaidOrders: { $sum: 1 },
 
           pendingSettlement: {
             $sum: {
               $cond: [
                 { $in: ["$settlementStatus", ["pending", "processing"]] },
-                "$expectedNetSettlement",
+                "$organizerPayoutAmount",
                 0,
               ],
             },
@@ -467,7 +507,7 @@ export const getOrganizerSettlementSummary = catchAsync(
             $sum: {
               $cond: [
                 { $eq: ["$settlementStatus", "settled"] },
-                "$expectedNetSettlement",
+                "$organizerPayoutAmount",
                 0,
               ],
             },
@@ -486,8 +526,9 @@ export const getOrganizerSettlementSummary = catchAsync(
       pendingSettlement: 0,
       settled: 0,
       platformFees: 0,
-      paystackFees: 0,
-      expectedNetSettlement: 0,
+      squadGatewayFees: 0,
+      squadTransferFees: 0,
+      organizerPayoutAmount: 0,
       totalPaidOrders: 0,
     };
 
@@ -507,8 +548,9 @@ export const getOrganizerSettlementSummary = catchAsync(
         pendingSettlement: item.pendingSettlement,
         settled: item.settled,
         platformFees: item.platformFees,
-        paystackFees: item.paystackFees,
-        expectedNetSettlement: item.expectedNetSettlement,
+        squadGatewayFees: item.squadGatewayFees,
+        squadTransferFees: item.squadTransferFees,
+        organizerPayoutAmount: item.organizerPayoutAmount,
         totalPaidOrders: item.totalPaidOrders,
       };
     });
@@ -531,7 +573,7 @@ export const getOrganizerSettlementSummary = catchAsync(
       paymentStatus: "paid",
     })
       .select(
-        "eventId buyerName buyerEmail paymentReference totalAmount platformFeeTotal paystackFeeTotal expectedNetSettlement settlementStatus paidAt settlementDate createdAt",
+        "eventId buyerName buyerEmail paymentReference totalAmount platformFeeTotal squadGatewayFee squadTransferFee organizerPayoutAmount settlementStatus paidAt settlementDate createdAt",
       )
       .sort({ paidAt: -1, createdAt: -1 })
       .skip(skip)
@@ -552,6 +594,9 @@ export const getOrganizerSettlementSummary = catchAsync(
         paymentReference: order.paymentReference,
         grossAmount: order.totalAmount,
         platformFeeTotal: order.platformFeeTotal,
+        squadGatewayFee: order.squadGatewayFee || 0,
+        squadTransferFee: order.squadTransferFee || 0,
+        organizerPayoutAmount: order.organizerPayoutAmount || 0,
         settlementStatus: order.settlementStatus,
         paidAt: order.paidAt,
         settlementDate: order.settlementDate,

@@ -33,9 +33,6 @@ export const getAdminOrders = catchAsync(
     }
 
     if (eventId) {
-      if (eventId) {
-        return next(new AppError("Invalid event ID", 400));
-      }
       matchStage.eventId = new mongoose.Types.ObjectId(eventId);
     }
 
@@ -119,8 +116,9 @@ export const getAdminOrders = catchAsync(
           paymentReference: 1,
           paidAt: 1,
           platformFeeTotal: 1,
-          paystackFeeTotal: 1,
-          expectedNetSettlement: 1,
+          squadGatewayFee: 1,
+          squadTransferFee: 1,
+          organizerPayoutAmount: 1,
           settlementStatus: 1,
           settlementBatchId: 1,
           settlementDate: 1,
@@ -163,8 +161,9 @@ export const getAdminOrders = catchAsync(
           paymentStatus: order.paymentStatus,
           paidAt: order.paidAt || null,
           platformFeeTotal: order.platformFeeTotal || 0,
-          paystackFeeTotal: order.paystackFeeTotal || 0,
-          expectedNetSettlement: order.expectedNetSettlement || 0,
+          squadGatewayFee: order.squadGatewayFee || 0,
+          squadTransferFee: order.squadTransferFee || 0,
+          organizerPayoutAmount: order.organizerPayoutAmount || 0,
           settlementStatus: order.settlementStatus || "pending",
           settlementBatchId: order.settlementBatchId || "",
           settlementDate: order.settlementDate || null,
@@ -237,12 +236,12 @@ export const getAdminOrderById = catchAsync(
           paymentReference: 1,
           paidAt: 1,
           platformFeeTotal: 1,
-          paystackFeeTotal: 1,
-          expectedNetSettlement: 1,
+          squadGatewayFee: 1,
+          squadTransferFee: 1,
+          organizerPayoutAmount: 1,
           settlementStatus: 1,
           settlementBatchId: 1,
           settlementDate: 1,
-          paystackTransactionId: 1,
           createdAt: 1,
           updatedAt: 1,
           "event._id": 1,
@@ -276,12 +275,12 @@ export const getAdminOrderById = catchAsync(
           paymentStatus: order.paymentStatus,
           paidAt: order.paidAt || null,
           platformFeeTotal: order.platformFeeTotal || 0,
-          paystackFeeTotal: order.paystackFeeTotal || 0,
-          expectedNetSettlement: order.expectedNetSettlement || 0,
+          squadGatewayFee: order.squadGatewayFee || 0,
+          squadTransferFee: order.squadTransferFee || 0,
+          organizerPayoutAmount: order.organizerPayoutAmount || 0,
           settlementStatus: order.settlementStatus || "pending",
           settlementBatchId: order.settlementBatchId || "",
           settlementDate: order.settlementDate || null,
-          paystackTransactionId: order.paystackTransactionId || "",
           createdAt: order.createdAt,
           updatedAt: order.updatedAt,
           event: {
