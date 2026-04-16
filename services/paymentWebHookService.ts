@@ -4,7 +4,6 @@ import { Request, Response, NextFunction } from "express";
 import Order from "../models/order";
 import OrderItem from "../models/orderItem";
 import Event from "../models/event";
-import Organizer from "../models/organizer";
 import { TicketType } from "../models/ticketTypes";
 import Ticket from "../models/ticket";
 import { AppError } from "../utils/appError";
@@ -13,7 +12,6 @@ import { generateTicketCode } from "../utils/generateTicketCode";
 import { sendEmail } from "../utils/email";
 import { generateTicketEmailTemplate } from "../utils/ticketEmailTemplate";
 import { releaseOrderReservation } from "./orderReservationService";
-import { SquadService } from "./squadService";
 
 type FulfilledOrderResult =
   | {
@@ -265,7 +263,17 @@ const fulfillPaidOrder = async ({
   order.paidAt = new Date();
   order.platformFeeTotal = platformFeeTotal;
   order.organizerPayoutAmount = organizerPayoutAmount;
-  order.settlementStatus = "pending";
+
+  if ((organizerPayoutAmount || 0) <= 0) {
+    order.settlementStatus = "settled";
+    order.settlementDate = new Date();
+    order.settlementBatchId = order.paymentReference
+      ? `NO_PAYOUT-${order.paymentReference}`
+      : "";
+  } else {
+    order.settlementStatus = "pending";
+  }
+
   order.reservationReleasedAt = new Date();
 
   await order.save({ session });
@@ -356,69 +364,8 @@ export const handleSquadWebhook = catchAsync(
         orderItems: fulfillment.orderItems,
       });
 
-      // --- PAYOUT LOGIC ---
-      const organizer = await Organizer.findById(
-        fulfillment.event.organizerId,
-      ).lean();
-      const bankDetails = organizer?.bankDetails;
-
-      if ((pendingOrder.organizerPayoutAmount || 0) <= 0) {
-        await Order.updateOne(
-          { _id: pendingOrder._id },
-          {
-            settlementStatus: "settled",
-            settlementDate: new Date(),
-            settlementBatchId: `NO_PAYOUT-${pendingOrder.paymentReference}`,
-          },
-        );
-
-        return res.sendStatus(200);
-      }
-
-      if (
-        bankDetails?.bankCode &&
-        bankDetails.accountNumber &&
-        bankDetails.accountName
-      ) {
-        const accountName = String(bankDetails.accountName);
-
-        try {
-          const transferReference = `PAYOUT-${pendingOrder.paymentReference}`;
-
-          await Order.updateOne(
-            { _id: pendingOrder._id, settlementStatus: { $ne: "settled" } },
-            {
-              settlementStatus: "processing",
-              settlementBatchId: transferReference,
-            },
-          );
-
-          // Payout Amount (in Kobo)
-          await SquadService.transferToOrganizer({
-            amount: Math.round(pendingOrder.organizerPayoutAmount * 100),
-            bank_code: bankDetails.bankCode,
-            account_number: bankDetails.accountNumber,
-            account_name: accountName,
-            transaction_reference: transferReference,
-          });
-
-          await Order.updateOne(
-            { _id: pendingOrder._id },
-            {
-              settlementStatus: "settled",
-              settlementDate: new Date(),
-              settlementBatchId: transferReference,
-            },
-          );
-        } catch (transferError) {
-          console.error("Payout Failed:", transferError);
-          await Order.updateOne(
-            { _id: pendingOrder._id },
-            { settlementStatus: "failed" },
-          );
-        }
-      }
-
+      // Settlement (organizer payouts) is handled by the settlement sync process
+      // to keep payment confirmation fast + idempotent.
       return res.sendStatus(200);
     } catch (error) {
       await session.abortTransaction();

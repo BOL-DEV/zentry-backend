@@ -53,42 +53,63 @@ const bankDetailsSchema = z
     }
   });
 
-export const createOrganizerSchema = z.object({
-  name: z
-    .string()
-    .trim()
-    .min(4, "Organizer name must be at least 4 characters")
-    .max(50, "Organizer name must be less than 50 characters"),
-
-  logoUrl: z.url("Logo URL must be a valid URL"),
-
-  bannerUrl: z.url("Banner URL must be a valid URL"),
-
-  heroTitle: z
-    .string()
-    .trim()
-    .min(3, "Hero title must be at least 3 characters"),
-
-  heroSubtitle: z
-    .string()
-    .trim()
-    .min(3, "Hero subtitle must be at least 3 characters"),
-
-  about: z.string().trim().min(10, "About must be at least 10 characters"),
-
-  contactEmail: z.email("Contact email must be valid"),
-
-  contactPhone: z
-    .string()
-    .min(7, "Contact phone must be at least 7 characters"),
-
-  location: z.string().trim().min(2, "Location is required"),
-});
-
-export const updateOrganizerProfileSchema = z
+export const adminCreateOrganizerSchema = z
   .object({
-    logoUrl: z.url("Logo URL must be a valid URL").optional(),
-    bannerUrl: z.url("Banner URL must be a valid URL").optional(),
+    name: z
+      .string()
+      .trim()
+      .min(4, "Organizer name must be at least 4 characters")
+      .max(50, "Organizer name must be less than 50 characters"),
+
+    logoUrl: z.string().trim().url("Logo URL must be a valid URL"),
+
+    bannerUrl: z.string().trim().url("Banner URL must be a valid URL"),
+
+    heroTitle: z
+      .string()
+      .trim()
+      .min(3, "Hero title must be at least 3 characters"),
+
+    heroSubtitle: z
+      .string()
+      .trim()
+      .min(3, "Hero subtitle must be at least 3 characters"),
+
+    about: z.string().trim().min(10, "About must be at least 10 characters"),
+
+    contactEmail: z
+      .string()
+      .trim()
+      .email("Contact email must be valid")
+      .transform((v: string) => v.toLowerCase()),
+
+    contactPhone: z
+      .string()
+      .trim()
+      .min(7, "Contact phone must be at least 7 characters"),
+
+    location: z.string().trim().min(2, "Location is required"),
+
+    bankDetails: bankDetailsSchema.optional(),
+  })
+  .strict();
+
+export const adminUpdateOrganizerSchema = z
+  .object({
+    name: z
+      .string()
+      .trim()
+      .min(4, "Organizer name must be at least 4 characters")
+      .max(50, "Organizer name must be less than 50 characters")
+      .optional(),
+
+    logoUrl: z.string().trim().url("Logo URL must be a valid URL").optional(),
+
+    bannerUrl: z
+      .string()
+      .trim()
+      .url("Banner URL must be a valid URL")
+      .optional(),
 
     heroTitle: z
       .string()
@@ -126,19 +147,3 @@ export const updateOrganizerProfileSchema = z
     bankDetails: bankDetailsSchema.optional(),
   })
   .strict();
-
-export const organizerSlugParamSchema = z.object({
-  slug: z
-    .string()
-    .trim()
-    .min(4, "Organizer slug must be at least 4 characters")
-    .max(50, "Organizer slug must be less than 50 characters")
-    .regex(/^[a-z0-9-]+$/, "Invalid organizer slug"),
-});
-
-export const organizerIdParamSchema = z.object({
-  organizerId: z
-    .string()
-    .trim()
-    .regex(/^[a-fA-F0-9]{24}$/, "Invalid organizer ID"),
-});

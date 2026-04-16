@@ -1,6 +1,10 @@
 import Event from "../models/event";
 import { TicketType } from "../models/ticketTypes";
-import { createEventSchema } from "../validations/event.schema";
+import {
+  createEventSchema,
+  eventIdParamSchema,
+  updateEventSchema,
+} from "../validations/event.schema";
 import { catchAsync } from "../utils/catchAsync";
 import { AppError } from "../utils/appError";
 import { Request, Response, NextFunction } from "express";
@@ -202,6 +206,65 @@ export const getEventById = catchAsync(
   },
 );
 
+export const updateEvent = catchAsync(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const user = req.user;
 
+    if (!user) {
+      return next(new AppError("User not found", 401));
+    }
 
+    const { eventId } = eventIdParamSchema.parse(req.params);
+    const data = updateEventSchema.parse(req.body);
 
+    if (!Object.keys(data).length) {
+      return next(new AppError("No updates provided", 400));
+    }
+
+    const event = await Event.findOne({
+      _id: eventId,
+      organizerId: user.organizerId,
+    });
+
+    if (!event) {
+      return next(new AppError("Event not found for this organizer", 404));
+    }
+
+    const nextTitle = typeof data.title === "string" ? data.title : event.title;
+    const nextDate = data.date ? new Date(data.date) : event.date;
+
+    const existingEvent = await Event.findOne({
+      _id: { $ne: event._id },
+      organizerId: user.organizerId,
+      title: nextTitle,
+      date: nextDate,
+    }).lean();
+
+    if (existingEvent) {
+      return next(
+        new AppError(
+          "An event with this title and date already exists for this organizer",
+          400,
+        ),
+      );
+    }
+
+    if (typeof data.title === "string") event.title = data.title;
+    if (typeof data.description === "string")
+      event.description = data.description;
+    if (typeof data.location === "string") event.location = data.location;
+    if (typeof data.posterUrl === "string") event.posterUrl = data.posterUrl;
+    if (typeof data.dressCode === "string") event.dressCode = data.dressCode;
+    if (typeof data.policies === "string") event.policies = data.policies;
+    if (data.date) event.date = new Date(data.date);
+
+    await event.save();
+
+    res.status(200).json({
+      status: "success",
+      data: {
+        event,
+      },
+    });
+  },
+);
