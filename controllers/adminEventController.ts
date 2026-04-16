@@ -5,8 +5,17 @@ import Order from "../models/order";
 import Ticket from "../models/ticket";
 import { AppError } from "../utils/appError";
 import { catchAsync } from "../utils/catchAsync";
-import { eventIdParamSchema } from "../validations/event.schema";
+import {
+  eventIdParamSchema,
+  updateEventSchema,
+} from "../validations/event.schema";
 import { adminEventsQuerySchema } from "../validations/adminEvent.schema";
+import {
+  ticketTypeIdParamSchema,
+  updateTicketTypeQuantitySchema,
+  updateTicketTypeSchema,
+} from "../validations/ticketType.schema";
+import { TicketType } from "../models/ticketTypes";
 
 export const getAdminEvents = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
@@ -306,6 +315,190 @@ export const getAdminEventById = catchAsync(
           paidAt: order.paidAt || null,
           createdAt: order.createdAt,
         })),
+      },
+    });
+  },
+);
+
+export const updateAdminEvent = catchAsync(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const { eventId } = eventIdParamSchema.parse(req.params);
+    const data = updateEventSchema.parse(req.body);
+
+    if (!Object.keys(data).length) {
+      return next(new AppError("No updates provided", 400));
+    }
+
+    const event = await Event.findById(eventId);
+
+    if (!event) {
+      return next(new AppError("Event not found", 404));
+    }
+
+    const incomingTitle =
+      typeof data.title === "string" ? data.title.trim() : undefined;
+    const incomingDate =
+      typeof data.date === "string" ? new Date(data.date) : undefined;
+
+    const nextTitle = incomingTitle ?? event.title;
+    const nextDate = incomingDate ?? event.date;
+
+    if (
+      (incomingTitle || incomingDate) &&
+      (nextTitle !== event.title || nextDate.getTime() !== event.date.getTime())
+    ) {
+      const existing = await Event.findOne({
+        _id: { $ne: event._id },
+        organizerId: event.organizerId,
+        title: nextTitle,
+        date: nextDate,
+      }).lean();
+
+      if (existing) {
+        return next(
+          new AppError(
+            "Another event with the same title and date already exists for this organizer",
+            400,
+          ),
+        );
+      }
+    }
+
+    if (incomingTitle) event.title = incomingTitle;
+    if (typeof data.description === "string")
+      event.description = data.description;
+    if (incomingDate) event.date = incomingDate;
+    if (typeof data.location === "string") event.location = data.location;
+    if (typeof data.posterUrl === "string") event.posterUrl = data.posterUrl;
+    if (typeof data.dressCode === "string") event.dressCode = data.dressCode;
+    if (typeof data.policies === "string") event.policies = data.policies;
+
+    await event.save();
+
+    res.status(200).json({
+      status: "success",
+      data: {
+        event,
+      },
+    });
+  },
+);
+
+export const updateAdminTicketTypeQuantity = catchAsync(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const { eventId } = eventIdParamSchema.parse(req.params);
+    const { ticketTypeId } = ticketTypeIdParamSchema.parse(req.params);
+    const { quantityAvailable } = updateTicketTypeQuantitySchema.parse(
+      req.body,
+    );
+
+    const event = await Event.findById(eventId).select("_id title").lean();
+
+    if (!event) {
+      return next(new AppError("Event not found", 404));
+    }
+
+    const ticketType = await TicketType.findOne({
+      _id: ticketTypeId,
+      eventId: event._id,
+    });
+
+    if (!ticketType) {
+      return next(new AppError("Ticket type not found for this event", 404));
+    }
+
+    const minRequired =
+      Number(ticketType.quantitySold || 0) +
+      Number(ticketType.quantityReserved || 0);
+
+    if (quantityAvailable < minRequired) {
+      return next(
+        new AppError(
+          `quantityAvailable cannot be less than sold + reserved (${minRequired})`,
+          400,
+        ),
+      );
+    }
+
+    ticketType.quantityAvailable = quantityAvailable;
+    await ticketType.save();
+
+    res.status(200).json({
+      status: "success",
+      data: {
+        event: {
+          id: event._id,
+          title: event.title,
+        },
+        ticketType,
+      },
+    });
+  },
+);
+
+export const updateAdminTicketType = catchAsync(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const { eventId } = eventIdParamSchema.parse(req.params);
+    const { ticketTypeId } = ticketTypeIdParamSchema.parse(req.params);
+    const data = updateTicketTypeSchema.parse(req.body);
+
+    if (!Object.keys(data).length) {
+      return next(new AppError("No updates provided", 400));
+    }
+
+    const event = await Event.findById(eventId).select("_id title").lean();
+
+    if (!event) {
+      return next(new AppError("Event not found", 404));
+    }
+
+    const ticketType = await TicketType.findOne({
+      _id: ticketTypeId,
+      eventId: event._id,
+    });
+
+    if (!ticketType) {
+      return next(new AppError("Ticket type not found for this event", 404));
+    }
+
+    if (typeof data.name === "string") {
+      const normalizedName = data.name.trim().toUpperCase();
+
+      const existingTicketType = await TicketType.findOne({
+        _id: { $ne: ticketType._id },
+        eventId: event._id,
+        name: normalizedName,
+      }).lean();
+
+      if (existingTicketType) {
+        return next(
+          new AppError(
+            "Ticket type with this name already exists for this event",
+            400,
+          ),
+        );
+      }
+
+      ticketType.name = normalizedName;
+    }
+
+    if (typeof data.description === "string")
+      ticketType.description = data.description;
+    if (typeof data.price === "number") ticketType.price = data.price;
+    if (typeof data.displayOrder === "number")
+      ticketType.displayOrder = data.displayOrder;
+    if (typeof data.isActive === "boolean") ticketType.isActive = data.isActive;
+
+    await ticketType.save();
+
+    res.status(200).json({
+      status: "success",
+      data: {
+        event: {
+          id: event._id,
+          title: event.title,
+        },
+        ticketType,
       },
     });
   },

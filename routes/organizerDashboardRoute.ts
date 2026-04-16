@@ -8,9 +8,16 @@ import {
   getOrganizerSettlementSummary,
   syncOrganizerSettlements,
 } from "../controllers/organizerDashboardController";
-import { createGalleryItem } from "../controllers/galleryController";
-import { createEvent } from "../controllers/eventController";
-import { createTicketType } from "../controllers/ticketTypeController";
+import {
+  createGalleryItem,
+  updateGalleryItem,
+} from "../controllers/galleryController";
+import { createEvent, updateEvent } from "../controllers/eventController";
+import {
+  createTicketType,
+  updateTicketType,
+  updateTicketTypeQuantity,
+} from "../controllers/ticketTypeController";
 import { verifyTicketForEvent } from "../controllers/ticketController";
 import { protect, restrictTo } from "../middlewares/protect";
 import {
@@ -18,6 +25,7 @@ import {
   logoutAllStaffSessions,
   logoutOneStaffSession,
 } from "../controllers/staffSessionController";
+import { updateOrganizerProfile } from "../controllers/organizerController";
 
 const router = Router();
 
@@ -27,12 +35,22 @@ router.use(restrictTo("organizer"));
 router.route("/summary").get(getOrganizerDashboardSummary);
 
 router.route("/events").get(getOrganizerEventStats).post(createEvent);
+router.route("/events/:eventId").patch(updateEvent);
 
 router.route("/gallery").post(createGalleryItem);
+router.route("/gallery/:galleryItemId").patch(updateGalleryItem);
+
+router.route("/profile").patch(updateOrganizerProfile);
 
 router.route("/overall-settlement-summary").get(getOrganizerSettlementSummary);
 
 router.route("/events/:eventId/ticket-types").post(createTicketType);
+router
+  .route("/events/:eventId/ticket-types/:ticketTypeId")
+  .patch(updateTicketType);
+router
+  .route("/events/:eventId/ticket-types/:ticketTypeId/quantity")
+  .patch(updateTicketTypeQuantity);
 
 router.route("/events/:eventId/attendees").get(getEventAttendees);
 

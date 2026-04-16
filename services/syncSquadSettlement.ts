@@ -34,21 +34,34 @@ export const syncSquadSettlements = async (options?: {
     errors: [],
   };
 
+  const to = options?.to ?? new Date();
+
+  const eventMatch: Record<string, unknown> = {
+    date: { $lte: to },
+  };
+
+  if (options?.from) {
+    (eventMatch.date as any).$gte = options.from;
+  }
+
+  if (options?.eventIds?.length) {
+    eventMatch._id = { $in: options.eventIds };
+  }
+
+  const events = await Event.find(eventMatch)
+    .select("_id organizerId date")
+    .lean();
+
+  if (!events.length) return result;
+
+  const eventIds = events.map((event) => event._id);
+
   const match: Record<string, unknown> = {
     paymentGateway: "squad",
     paymentStatus: "paid",
-    settlementStatus: { $in: ["pending", "failed", "processing"] },
+    settlementStatus: { $in: ["pending", "failed"] },
+    eventId: { $in: eventIds },
   };
-
-  if (options?.eventIds?.length) {
-    match.eventId = { $in: options.eventIds };
-  }
-
-  if (options?.from || options?.to) {
-    match.paidAt = {};
-    if (options?.from) (match.paidAt as any).$gte = options.from;
-    if (options?.to) (match.paidAt as any).$lte = options.to;
-  }
 
   const limit = Math.max(1, Math.min(options?.limit ?? 250, 1000));
 
@@ -63,14 +76,6 @@ export const syncSquadSettlements = async (options?: {
   result.ordersMatched = orders.length;
 
   if (!orders.length) return result;
-
-  const eventIds = Array.from(
-    new Set(orders.map((order) => String(order.eventId))),
-  ).map((id) => new mongoose.Types.ObjectId(id));
-
-  const events = await Event.find({ _id: { $in: eventIds } })
-    .select("_id organizerId")
-    .lean();
 
   const organizerIds = Array.from(
     new Set(events.map((event) => String(event.organizerId))),
