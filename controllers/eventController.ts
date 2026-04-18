@@ -160,6 +160,57 @@ export const getAllEvents = catchAsync(
   },
 );
 
+export const getPastEvents = catchAsync(async (req: Request, res: Response) => {
+  const page = Math.max(Number(req.query.page) || 1, 1);
+  const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
+  const skip = (page - 1) * limit;
+
+  const now = new Date();
+
+  const filter: Record<string, unknown> = {
+    date: { $lt: now },
+  };
+
+  const [events, total] = await Promise.all([
+    Event.find(filter)
+      .populate("organizerId", "slug name")
+      .sort({ date: -1, createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean() as unknown as EventWithPopulatedOrganizer[],
+    Event.countDocuments(filter),
+  ]);
+
+  const formattedEvents = events.map((event) => {
+    const organizerSlug =
+      event.organizerId && typeof event.organizerId === "object"
+        ? (event.organizerId as any).slug
+        : undefined;
+    const organizerName =
+      event.organizerId && typeof event.organizerId === "object"
+        ? (event.organizerId as any).name
+        : undefined;
+
+    return {
+      ...event,
+      eventId: (event as any)._id,
+      organizerSlug,
+      organizerName,
+    };
+  });
+
+  res.status(200).json({
+    status: "success",
+    results: formattedEvents.length,
+    page,
+    limit,
+    total,
+    data: {
+      events: formattedEvents,
+    },
+  });
+});
+
 export const getEventById = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
     const organizer = req.organizer;
