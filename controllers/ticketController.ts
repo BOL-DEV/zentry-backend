@@ -49,6 +49,8 @@ export const verifyTicketForEvent = catchAsync(
     }
 
     ticket.status = "checked-in";
+    ticket.checkedInAt = new Date();
+    ticket.verifiedBy = user._id;
     await ticket.save();
 
     res.status(200).json({

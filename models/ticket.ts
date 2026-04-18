@@ -8,7 +8,9 @@ export interface ITicket extends Document {
   buyerEmail: string;
   ticketCode: string;
   status: "valid" | "checked-in";
-  createdAt: Date
+  checkedInAt?: Date | null;
+  verifiedBy?: Types.ObjectId | null;
+  createdAt: Date;
 }
 
 const TicketSchema = new Schema(
@@ -54,6 +56,17 @@ const TicketSchema = new Schema(
       enum: ["valid", "checked-in"],
       default: "valid",
     },
+    checkedInAt: {
+      type: Date,
+      default: null,
+      index: true,
+    },
+    verifiedBy: {
+      type: Types.ObjectId,
+      ref: "DashboardUser",
+      default: null,
+      index: true,
+    },
   },
   {
     timestamps: true,
@@ -63,6 +76,7 @@ const TicketSchema = new Schema(
 
 // TicketSchema.index({ orderId: 1 });
 TicketSchema.index({ eventId: 1, status: 1 });
+TicketSchema.index({ eventId: 1, checkedInAt: -1 });
 
 const Ticket = model<ITicket>("Ticket", TicketSchema);
 
