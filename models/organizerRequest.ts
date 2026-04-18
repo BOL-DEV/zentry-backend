@@ -5,9 +5,19 @@ export type OrganizerRequestStatus = "pending" | "approved" | "rejected";
 export interface IOrganizerRequest extends Document {
   name: string;
   email: string;
+  logoUrl: string;
+  bannerUrl: string;
+  heroTitle: string;
+  heroSubtitle: string;
   phone: string;
   about: string;
   location: string;
+  bankDetails?: {
+    bankName?: string;
+    bankCode?: string;
+    accountNumber?: string;
+    accountName?: string;
+  };
   preferredSlug: string;
   status: OrganizerRequestStatus;
   reviewNote: string;
@@ -34,6 +44,26 @@ const organizerRequestSchema = new Schema<IOrganizerRequest>(
       lowercase: true,
       index: true,
     },
+    logoUrl: {
+      type: String,
+      required: [true, "Organizer logo is required"],
+      trim: true,
+    },
+    bannerUrl: {
+      type: String,
+      required: [true, "Organizer banner is required"],
+      trim: true,
+    },
+    heroTitle: {
+      type: String,
+      required: [true, "Organizer hero title is required"],
+      trim: true,
+    },
+    heroSubtitle: {
+      type: String,
+      required: [true, "Organizer hero subtitle is required"],
+      trim: true,
+    },
     phone: {
       type: String,
       default: "",
@@ -48,6 +78,24 @@ const organizerRequestSchema = new Schema<IOrganizerRequest>(
       type: String,
       default: "",
       trim: true,
+    },
+    bankDetails: {
+      bankName: {
+        type: String,
+        trim: true,
+      },
+      bankCode: {
+        type: String,
+        trim: true,
+      },
+      accountNumber: {
+        type: String,
+        trim: true,
+      },
+      accountName: {
+        type: String,
+        trim: true,
+      },
     },
     preferredSlug: {
       type: String,

@@ -1,5 +1,6 @@
 import type { ClientSession } from "mongoose";
 import Organizer from "../models/organizer";
+import DashboardUser from "../models/dasboardUser";
 import { generateSlug } from "../utils/slugify";
 
 type ResolveUniqueOrganizerSlugArgs = {
@@ -13,7 +14,8 @@ export const resolveUniqueOrganizerSlug = async ({
   preferredSlug,
   session,
 }: ResolveUniqueOrganizerSlugArgs) => {
-  const preferred = typeof preferredSlug === "string" ? preferredSlug.trim() : "";
+  const preferred =
+    typeof preferredSlug === "string" ? preferredSlug.trim() : "";
 
   const base = generateSlug(preferred || name);
   if (!base) return "";
@@ -35,4 +37,43 @@ export const resolveUniqueOrganizerSlug = async ({
   }
 
   return candidate;
+};
+
+type ResolveUniqueDashboardLoginEmailArgs = {
+  slug: string;
+  session?: ClientSession;
+  domain?: string;
+};
+
+export const resolveUniqueDashboardLoginEmail = async ({
+  slug,
+  session,
+  domain,
+}: ResolveUniqueDashboardLoginEmailArgs) => {
+  const normalizedDomain = (
+    domain ||
+    process.env.ORG_LOGIN_EMAIL_DOMAIN ||
+    "zentry.com"
+  )
+    .trim()
+    .toLowerCase();
+
+  const baseLocal = generateSlug(slug);
+  if (!baseLocal) return "";
+
+  const existsQuery = (email: string) => {
+    const query = DashboardUser.exists({ email });
+    return session ? query.session(session) : query;
+  };
+
+  let local = baseLocal;
+  let counter = 1;
+
+  while (await existsQuery(`${local}@${normalizedDomain}`)) {
+    local = `${baseLocal}-${counter}`;
+    counter += 1;
+    if (counter > 200) return "";
+  }
+
+  return `${local}@${normalizedDomain}`;
 };

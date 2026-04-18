@@ -8,6 +8,7 @@ import { organizerIdParamSchema } from "../validations/organizer.schema";
 import {
   dashboardUserIdParamSchema,
   dashboardUserSessionParamsSchema,
+  resetDashboardUserPasswordBodySchema,
 } from "../validations/dashboardUser.schema";
 
 export const getAdminOrganizerDashboardUsers = catchAsync(
@@ -24,7 +25,8 @@ export const getAdminOrganizerDashboardUsers = catchAsync(
     const limit = Math.max(Number(req.query.limit) || 20, 1);
     const skip = (page - 1) * limit;
 
-    const role = typeof req.query.role === "string" ? req.query.role.trim() : "";
+    const role =
+      typeof req.query.role === "string" ? req.query.role.trim() : "";
 
     const filter: Record<string, unknown> = {
       organizerId,
@@ -36,7 +38,9 @@ export const getAdminOrganizerDashboardUsers = catchAsync(
 
     const [users, total] = await Promise.all([
       DashboardUser.find(filter)
-        .select("_id organizerId fullName email role isActive createdAt updatedAt")
+        .select(
+          "_id organizerId fullName email role isActive createdAt updatedAt",
+        )
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
@@ -65,7 +69,9 @@ export const getAdminDashboardUserSessions = catchAsync(
       userId,
       isActive: true,
     })
-      .select("_id userId organizerId role isActive deviceName userAgent ipAddress lastSeenAt createdAt updatedAt")
+      .select(
+        "_id userId organizerId role isActive deviceName userAgent ipAddress lastSeenAt createdAt updatedAt",
+      )
       .sort({ createdAt: -1 })
       .lean();
 
@@ -167,6 +173,51 @@ export const toggleAdminDashboardUserActiveState = catchAsync(
       message: `Dashboard user has been ${
         user.isActive ? "reactivated" : "disabled"
       } successfully`,
+      data: {
+        user: {
+          id: user._id,
+          organizerId: user.organizerId,
+          fullName: user.fullName,
+          email: user.email,
+          role: user.role,
+          isActive: user.isActive,
+        },
+      },
+    });
+  },
+);
+
+export const resetAdminDashboardUserPassword = catchAsync(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const { userId } = dashboardUserIdParamSchema.parse(req.params);
+    const { newPassword } = resetDashboardUserPasswordBodySchema.parse(
+      req.body,
+    );
+
+    const user = await DashboardUser.findById(userId).select(
+      "+password _id organizerId fullName email role isActive",
+    );
+
+    if (!user) {
+      return next(new AppError("Dashboard user not found", 404));
+    }
+
+    user.password = newPassword;
+    await user.save();
+
+    await UserSession.updateMany(
+      {
+        userId: user._id,
+        isActive: true,
+      },
+      {
+        isActive: false,
+      },
+    );
+
+    res.status(200).json({
+      status: "success",
+      message: "Password reset successfully. User must log in again.",
       data: {
         user: {
           id: user._id,

@@ -10,8 +10,12 @@ import {
   organizerRequestIdParamSchema,
   rejectOrganizerRequestSchema,
 } from "../validations/organizerRequest.schema";
-import { resolveUniqueOrganizerSlug } from "../services/organizerRequestService";
+import {
+  resolveUniqueDashboardLoginEmail,
+  resolveUniqueOrganizerSlug,
+} from "../services/organizerRequestService";
 import { generateTemporaryPassword } from "../utils/generateTemporaryPassword";
+import { sendEmail } from "../utils/email";
 
 export const getAdminOrganizerRequests = catchAsync(
   async (req: Request, res: Response) => {
@@ -97,17 +101,19 @@ export const approveAdminOrganizerRequest = catchAsync(
 
     const session = await mongoose.startSession();
 
-    let result: {
+    type ApprovalResult = {
       organizer: any;
       dashboardUser: any;
       temporaryPassword: string;
-    } | null = null;
+      notificationEmail: string;
+    };
+
+    let result: ApprovalResult | undefined;
 
     try {
-      await session.withTransaction(async () => {
-        const requestDoc = await OrganizerRequest.findById(requestId).session(
-          session,
-        );
+      result = await session.withTransaction(async () => {
+        const requestDoc =
+          await OrganizerRequest.findById(requestId).session(session);
 
         if (!requestDoc) {
           throw new AppError("Organizer request not found", 404);
@@ -169,17 +175,30 @@ export const approveAdminOrganizerRequest = catchAsync(
 
         const temporaryPassword = generateTemporaryPassword();
 
+        const loginEmail = await resolveUniqueDashboardLoginEmail({
+          slug,
+          session,
+        });
+
+        if (!loginEmail) {
+          throw new AppError(
+            "Unable to generate a unique login email for this organizer",
+            400,
+          );
+        }
+
         const organizer = new Organizer({
           name: requestDoc.name,
           slug,
-          logoUrl: "",
-          bannerUrl: "",
-          heroTitle: requestDoc.name,
-          heroSubtitle: "",
+          logoUrl: requestDoc.logoUrl,
+          bannerUrl: requestDoc.bannerUrl,
+          heroTitle: requestDoc.heroTitle,
+          heroSubtitle: requestDoc.heroSubtitle,
           about: requestDoc.about || "",
           contactEmail: requestDoc.email,
           contactPhone: requestDoc.phone || "",
           location: requestDoc.location || "",
+          bankDetails: requestDoc.bankDetails,
           isActive: true,
         });
 
@@ -188,7 +207,7 @@ export const approveAdminOrganizerRequest = catchAsync(
         const dashboardUser = new DashboardUser({
           organizerId: organizer._id,
           fullName: requestDoc.name,
-          email: requestDoc.email,
+          email: loginEmail,
           password: temporaryPassword,
           role: "organizer",
           isActive: true,
@@ -206,7 +225,7 @@ export const approveAdminOrganizerRequest = catchAsync(
 
         await requestDoc.save({ session });
 
-        result = {
+        return {
           organizer: {
             id: organizer._id,
             name: organizer.name,
@@ -223,6 +242,7 @@ export const approveAdminOrganizerRequest = catchAsync(
             isActive: dashboardUser.isActive,
           },
           temporaryPassword,
+          notificationEmail: organizer.contactEmail,
         };
       });
     } finally {
@@ -233,9 +253,71 @@ export const approveAdminOrganizerRequest = catchAsync(
       return next(new AppError("Approval failed", 500));
     }
 
+    let emailSent = false;
+
+    try {
+      const appName = process.env.APP_NAME || "Zentry";
+      const dashboardUrl = process.env.DASHBOARD_URL || "";
+
+      const subject = `${appName}: Organizer application approved`;
+
+      const loginInstructions = dashboardUrl
+        ? `You can log in here: ${dashboardUrl}`
+        : "Log in via your dashboard app.";
+
+      const text = [
+        `Hi ${result.dashboardUser.fullName},`,
+        "",
+        "Your organizer application has been approved.",
+        "",
+        `Login email: ${result.dashboardUser.email}`,
+        `Temporary password: ${result.temporaryPassword}`,
+        loginInstructions,
+        "",
+        "Please change your password after logging in.",
+      ].join("\n");
+
+      const html = `
+        <div style="font-family: Arial, sans-serif; line-height: 1.5;">
+          <p>Hi ${escapeHtml(result.dashboardUser.fullName)},</p>
+          <p>Your organizer application has been <strong>approved</strong>.</p>
+          <p><strong>Login details</strong></p>
+          <ul>
+            <li><strong>Login email:</strong> ${escapeHtml(result.dashboardUser.email)}</li>
+            <li><strong>Temporary password:</strong> ${escapeHtml(result.temporaryPassword)}</li>
+          </ul>
+          ${
+            dashboardUrl
+              ? `<p><strong>Dashboard:</strong> <a href="${dashboardUrl}">${dashboardUrl}</a></p>`
+              : ""
+          }
+          <p>Please change your password after logging in.</p>
+        </div>
+      `;
+
+      await sendEmail({
+        to: result.notificationEmail,
+        subject,
+        html,
+        text,
+      });
+
+      emailSent = true;
+    } catch {
+      emailSent = false;
+    }
+
     res.status(200).json({
       status: "success",
-      data: result,
+      data: {
+        organizer: result.organizer,
+        dashboardUser: result.dashboardUser,
+        temporaryPassword: result.temporaryPassword,
+        notification: {
+          emailSent,
+          to: result.notificationEmail,
+        },
+      },
     });
   },
 );
@@ -277,3 +359,11 @@ export const rejectAdminOrganizerRequest = catchAsync(
 
 const escapeRegex = (value: string) =>
   value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const escapeHtml = (value: string) =>
+  value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#039;");

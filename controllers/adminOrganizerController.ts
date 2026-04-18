@@ -8,7 +8,11 @@ import Gallery from "../models/gallery";
 import { AppError } from "../utils/appError";
 import { catchAsync } from "../utils/catchAsync";
 import { generateSlug } from "../utils/slugify";
-import { organizerIdParamSchema } from "../validations/organizer.schema";
+import {
+  organizerIdParamSchema,
+  updateOrganizerOrganizerSessionLimitSchema,
+  updateOrganizerStaffSessionLimitSchema,
+} from "../validations/organizer.schema";
 import {
   createGalleryItemSchema,
   galleryItemIdParamSchema,
@@ -225,7 +229,7 @@ export const getAdminOrganizerById = catchAsync(
 
     const organizer = await Organizer.findById(organizerId)
       .select(
-        "name slug logoUrl bannerUrl heroTitle heroSubtitle about contactEmail contactPhone location bankDetails isActive createdAt updatedAt",
+        "name slug logoUrl bannerUrl heroTitle heroSubtitle about contactEmail contactPhone location bankDetails staffSessionLimit organizerSessionLimit isActive createdAt updatedAt",
       )
       .lean();
 
@@ -336,6 +340,14 @@ export const getAdminOrganizerById = catchAsync(
           contactPhone: organizer.contactPhone || "",
           location: (organizer as any).location || "",
           bankDetails,
+          staffSessionLimit:
+            typeof (organizer as any).staffSessionLimit === "number"
+              ? (organizer as any).staffSessionLimit
+              : 3,
+          organizerSessionLimit:
+            typeof (organizer as any).organizerSessionLimit === "number"
+              ? (organizer as any).organizerSessionLimit
+              : 1,
           isActive: organizer.isActive,
           createdAt: organizer.createdAt,
           updatedAt: organizer.updatedAt,
@@ -478,6 +490,71 @@ export const updateAdminOrganizer = catchAsync(
       status: "success",
       data: {
         organizer,
+      },
+    });
+  },
+);
+
+export const updateAdminOrganizerStaffSessionLimit = catchAsync(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const { organizerId } = organizerIdParamSchema.parse(req.params);
+    const { staffSessionLimit } = updateOrganizerStaffSessionLimitSchema.parse(
+      req.body,
+    );
+
+    const organizer = await Organizer.findById(organizerId).select(
+      "_id name slug staffSessionLimit",
+    );
+
+    if (!organizer) {
+      return next(new AppError("Organizer not found", 404));
+    }
+
+    (organizer as any).staffSessionLimit = staffSessionLimit;
+    await organizer.save();
+
+    res.status(200).json({
+      status: "success",
+      message: "Staff session limit updated successfully",
+      data: {
+        organizer: {
+          id: organizer._id,
+          name: organizer.name,
+          slug: organizer.slug,
+          staffSessionLimit: (organizer as any).staffSessionLimit,
+        },
+      },
+    });
+  },
+);
+
+export const updateAdminOrganizerOrganizerSessionLimit = catchAsync(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const { organizerId } = organizerIdParamSchema.parse(req.params);
+    const { organizerSessionLimit } =
+      updateOrganizerOrganizerSessionLimitSchema.parse(req.body);
+
+    const organizer = await Organizer.findById(organizerId).select(
+      "_id name slug organizerSessionLimit",
+    );
+
+    if (!organizer) {
+      return next(new AppError("Organizer not found", 404));
+    }
+
+    (organizer as any).organizerSessionLimit = organizerSessionLimit;
+    await organizer.save();
+
+    res.status(200).json({
+      status: "success",
+      message: "Organizer session limit updated successfully",
+      data: {
+        organizer: {
+          id: organizer._id,
+          name: organizer.name,
+          slug: organizer.slug,
+          organizerSessionLimit: (organizer as any).organizerSessionLimit,
+        },
       },
     });
   },

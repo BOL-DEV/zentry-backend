@@ -5,6 +5,7 @@ import { AppError } from "../utils/appError";
 import { catchAsync } from "../utils/catchAsync";
 import {
   logoutOneStaffSessionParamsSchema,
+  resetStaffPasswordBodySchema,
   staffSessionParamsSchema,
 } from "../validations/staffSession.schema";
 
@@ -100,6 +101,41 @@ export const logoutAllStaffSessions = catchAsync(
     res.status(200).json({
       status: "success",
       message: "All staff sessions logged out successfully",
+    });
+  },
+);
+
+export const resetStaffPassword = catchAsync(
+  async (req: any, res: Response, next: NextFunction) => {
+    const { staffId } = staffSessionParamsSchema.parse(req.params);
+    const { newPassword } = resetStaffPasswordBodySchema.parse(req.body);
+
+    const staffUser = await DashboardUser.findOne({
+      _id: staffId,
+      organizerId: req.user.organizerId,
+      role: "staff",
+    }).select("+password");
+
+    if (!staffUser) {
+      return next(new AppError("Staff user not found", 404));
+    }
+
+    staffUser.password = newPassword;
+    await staffUser.save();
+
+    await UserSession.updateMany(
+      {
+        userId: staffUser._id,
+        isActive: true,
+      },
+      {
+        isActive: false,
+      },
+    );
+
+    res.status(200).json({
+      status: "success",
+      message: "Staff password reset successfully. Staff must log in again.",
     });
   },
 );

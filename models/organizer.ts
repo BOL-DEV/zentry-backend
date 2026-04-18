@@ -74,6 +74,18 @@ const organizerSchema = new Schema(
         trim: true,
       },
     },
+    staffSessionLimit: {
+      type: Number,
+      default: 3,
+      min: 1,
+      max: 20,
+    },
+    organizerSessionLimit: {
+      type: Number,
+      default: 1,
+      min: 1,
+      max: 20,
+    },
     isActive: {
       type: Boolean,
       default: true,
