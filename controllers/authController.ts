@@ -8,6 +8,7 @@ import { AppError } from "../utils/appError";
 import { catchAsync } from "../utils/catchAsync";
 import {
   createDashboardUserSchema,
+  changePasswordSchema,
   loginSchema,
 } from "../validations/auth.schema";
 
@@ -38,33 +39,75 @@ export const login = catchAsync(
       return next(new AppError("User account is disabled", 403));
     }
 
+    const organizer = await Organizer.findById(user.organizerId)
+      .select("slug staffSessionLimit organizerSessionLimit")
+      .lean();
+
+    if (!organizer) {
+      return next(new AppError("Organizer not found for this user", 404));
+    }
+
     if (user.role === "organizer") {
-      await UserSession.updateMany(
-        { userId: user._id, isActive: true },
-        { isActive: false },
-      );
+      const organizerSessionLimit =
+        typeof (organizer as any).organizerSessionLimit === "number"
+          ? (organizer as any).organizerSessionLimit
+          : 1;
+
+      if (organizerSessionLimit <= 1) {
+        await UserSession.updateMany(
+          { userId: user._id, isActive: true },
+          { isActive: false },
+        );
+      } else {
+        const activeSessionsCount = await UserSession.countDocuments({
+          userId: user._id,
+          isActive: true,
+        });
+
+        // Make room for the new login session by revoking the oldest sessions.
+        const numberToRevoke =
+          activeSessionsCount - (organizerSessionLimit - 1);
+
+        if (numberToRevoke > 0) {
+          const sessionsToRevoke = await UserSession.find({
+            userId: user._id,
+            isActive: true,
+          })
+            .select("_id")
+            .sort({ createdAt: 1 })
+            .limit(numberToRevoke)
+            .lean();
+
+          const ids = sessionsToRevoke.map((s) => s._id);
+          if (ids.length) {
+            await UserSession.updateMany(
+              { _id: { $in: ids } },
+              { isActive: false },
+            );
+          }
+        }
+      }
     }
 
     if (user.role === "staff") {
+      const staffSessionLimit =
+        typeof (organizer as any).staffSessionLimit === "number"
+          ? (organizer as any).staffSessionLimit
+          : 3;
+
       const activeSessionsCount = await UserSession.countDocuments({
         userId: user._id,
         isActive: true,
       });
 
-      if (activeSessionsCount >= 3) {
+      if (activeSessionsCount >= staffSessionLimit) {
         return next(
           new AppError(
-            "Maximum of 3 devices allowed. Log out from one device first.",
+            `Maximum of ${staffSessionLimit} devices allowed. Log out from one device first.`,
             403,
           ),
         );
       }
-    }
-
-    const organizer = await Organizer.findById(user.organizerId).select("slug");
-
-    if (!organizer) {
-      return next(new AppError("Organizer not found for this user", 404));
     }
 
     const session = await UserSession.create({
@@ -160,6 +203,52 @@ export const logout = catchAsync(
     res.status(200).json({
       status: "success",
       message: "Logged out successfully",
+    });
+  },
+);
+
+export const changePassword = catchAsync(
+  async (req: Request, res: Response, next: NextFunction) => {
+    if (!req.user) {
+      return next(new AppError("You are not logged in", 401));
+    }
+
+    if (req.user.role !== "organizer") {
+      return next(
+        new AppError(
+          "Staff users cannot change their password. Contact your organizer.",
+          403,
+        ),
+      );
+    }
+
+    const { currentPassword, newPassword } = changePasswordSchema.parse(
+      req.body,
+    );
+
+    const user = await DashboardUser.findById(req.user._id).select("+password");
+
+    if (!user) {
+      return next(new AppError("User no longer exists", 401));
+    }
+
+    const isCorrect = await bcrypt.compare(currentPassword, user.password);
+    if (!isCorrect) {
+      return next(new AppError("Current password is incorrect", 401));
+    }
+
+    user.password = newPassword;
+    await user.save();
+
+    // Revoke all active sessions (including current). User must login again.
+    await UserSession.updateMany(
+      { userId: user._id, isActive: true },
+      { isActive: false },
+    );
+
+    res.status(200).json({
+      status: "success",
+      message: "Password changed successfully. Please log in again.",
     });
   },
 );

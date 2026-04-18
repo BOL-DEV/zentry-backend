@@ -142,3 +142,23 @@ export const organizerIdParamSchema = z.object({
     .trim()
     .regex(/^[a-fA-F0-9]{24}$/, "Invalid organizer ID"),
 });
+
+export const updateOrganizerStaffSessionLimitSchema = z
+  .object({
+    staffSessionLimit: z
+      .number()
+      .int("staffSessionLimit must be an integer")
+      .min(1, "staffSessionLimit must be at least 1")
+      .max(20, "staffSessionLimit must be at most 20"),
+  })
+  .strict();
+
+export const updateOrganizerOrganizerSessionLimitSchema = z
+  .object({
+    organizerSessionLimit: z
+      .number()
+      .int("organizerSessionLimit must be an integer")
+      .min(1, "organizerSessionLimit must be at least 1")
+      .max(20, "organizerSessionLimit must be at most 20"),
+  })
+  .strict();

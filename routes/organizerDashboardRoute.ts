@@ -26,6 +26,7 @@ import {
   getOrganizerStaffUsers,
   logoutAllStaffSessions,
   logoutOneStaffSession,
+  resetStaffPassword,
 } from "../controllers/staffSessionController";
 import { updateOrganizerProfile } from "../controllers/organizerController";
 
@@ -100,6 +101,10 @@ router
 router
   .route("/staff/:staffId/logout-all")
   .patch(restrictTo("organizer"), logoutAllStaffSessions);
+
+router
+  .route("/staff/:staffId/password")
+  .patch(restrictTo("organizer"), resetStaffPassword);
 
 
 

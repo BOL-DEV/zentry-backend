@@ -10,6 +10,8 @@ import {
   toggleAdminOrganizerActiveState,
   updateAdminGalleryItem,
   updateAdminOrganizer,
+  updateAdminOrganizerOrganizerSessionLimit,
+  updateAdminOrganizerStaffSessionLimit,
 } from "../controllers/adminOrganizerController";
 import {
   getAdminOrderById,
@@ -37,6 +39,7 @@ import {
   getAdminOrganizerDashboardUsers,
   logoutAdminDashboardUserSession,
   logoutAllAdminDashboardUserSessions,
+  resetAdminDashboardUserPassword,
   toggleAdminDashboardUserActiveState,
 } from "../controllers/adminDashboardUserController";
 
@@ -66,6 +69,12 @@ router
 router
   .route("/organizers/:organizerId/toggle-active")
   .patch(toggleAdminOrganizerActiveState);
+router
+  .route("/organizers/:organizerId/staff-session-limit")
+  .patch(updateAdminOrganizerStaffSessionLimit);
+router
+  .route("/organizers/:organizerId/organizer-session-limit")
+  .patch(updateAdminOrganizerOrganizerSessionLimit);
 
 /// DASHBOARD USER MANAGEMENT
 router
@@ -77,6 +86,9 @@ router
 router
   .route("/dashboard-users/:userId/sessions/:sessionId/logout")
   .patch(logoutAdminDashboardUserSession);
+router
+  .route("/dashboard-users/:userId/reset-password")
+  .patch(resetAdminDashboardUserPassword);
 router
   .route("/dashboard-users/:userId/logout-all")
   .patch(logoutAllAdminDashboardUserSessions);
