@@ -22,6 +22,8 @@ import { verifyTicketForEvent } from "../controllers/ticketController";
 import { protect, restrictTo } from "../middlewares/protect";
 import {
   getStaffSessions,
+  getOrganizerDashboardUsers,
+  getOrganizerStaffUsers,
   logoutAllStaffSessions,
   logoutOneStaffSession,
 } from "../controllers/staffSessionController";
@@ -30,29 +32,42 @@ import { updateOrganizerProfile } from "../controllers/organizerController";
 const router = Router();
 
 router.use(protect);
-router.use(restrictTo("organizer"));
+router.use(restrictTo("organizer", "staff"));
 
-router.route("/summary").get(getOrganizerDashboardSummary);
+router
+  .route("/summary")
+  .get(restrictTo("organizer"), getOrganizerDashboardSummary);
 
-router.route("/events").get(getOrganizerEventStats).post(createEvent);
-router.route("/events/:eventId").patch(updateEvent);
+router
+  .route("/events")
+  .get(restrictTo("organizer"), getOrganizerEventStats)
+  .post(restrictTo("organizer"), createEvent);
+router.route("/events/:eventId").patch(restrictTo("organizer"), updateEvent);
 
-router.route("/gallery").post(createGalleryItem);
-router.route("/gallery/:galleryItemId").patch(updateGalleryItem);
+router.route("/gallery").post(restrictTo("organizer"), createGalleryItem);
+router
+  .route("/gallery/:galleryItemId")
+  .patch(restrictTo("organizer"), updateGalleryItem);
 
-router.route("/profile").patch(updateOrganizerProfile);
+router.route("/profile").patch(restrictTo("organizer"), updateOrganizerProfile);
 
-router.route("/overall-settlement-summary").get(getOrganizerSettlementSummary);
+router
+  .route("/overall-settlement-summary")
+  .get(restrictTo("organizer"), getOrganizerSettlementSummary);
 
-router.route("/events/:eventId/ticket-types").post(createTicketType);
+router
+  .route("/events/:eventId/ticket-types")
+  .post(restrictTo("organizer"), createTicketType);
 router
   .route("/events/:eventId/ticket-types/:ticketTypeId")
-  .patch(updateTicketType);
+  .patch(restrictTo("organizer"), updateTicketType);
 router
   .route("/events/:eventId/ticket-types/:ticketTypeId/quantity")
-  .patch(updateTicketTypeQuantity);
+  .patch(restrictTo("organizer"), updateTicketTypeQuantity);
 
-router.route("/events/:eventId/attendees").get(getEventAttendees);
+router
+  .route("/events/:eventId/attendees")
+  .get(restrictTo("organizer"), getEventAttendees);
 
 router
   .route("/events/:eventId/scanner-summary")
@@ -62,23 +77,29 @@ router
   .route("/events/:eventId/verify-ticket")
   .post(restrictTo("organizer", "staff"), verifyTicketForEvent);
 
-router.route("/sync-settlements").post(syncOrganizerSettlements);
+router
+  .route("/sync-settlements")
+  .post(restrictTo("organizer"), syncOrganizerSettlements);
 
 router
   .route("/events/:eventId/settlement-summary")
-  .get(getEventSettlementSummary);
+  .get(restrictTo("organizer"), getEventSettlementSummary);
+
+router.route("/staff").get(restrictTo("organizer"), getOrganizerStaffUsers);
+
+router.route("/users").get(restrictTo("organizer"), getOrganizerDashboardUsers);
 
 router
   .route("/staff/:staffId/sessions")
-  .get(getStaffSessions);
+  .get(restrictTo("organizer"), getStaffSessions);
 
 router
   .route("/staff/:staffId/sessions/:sessionId/logout")
-  .patch(logoutOneStaffSession);
+  .patch(restrictTo("organizer"), logoutOneStaffSession);
 
 router
   .route("/staff/:staffId/logout-all")
-  .patch(logoutAllStaffSessions);
+  .patch(restrictTo("organizer"), logoutAllStaffSessions);
 
 
 

@@ -10,6 +10,7 @@ import { catchAsync } from "../utils/catchAsync";
 import { generateSlug } from "../utils/slugify";
 import { organizerIdParamSchema } from "../validations/organizer.schema";
 import {
+  createGalleryItemSchema,
   galleryItemIdParamSchema,
   updateGalleryItemSchema,
 } from "../validations/gallery.schema";
@@ -562,6 +563,79 @@ export const updateAdminGalleryItem = catchAsync(
     await galleryItem.save();
 
     res.status(200).json({
+      status: "success",
+      data: {
+        galleryItem,
+      },
+    });
+  },
+);
+
+export const getAdminOrganizerGalleryItems = catchAsync(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const { organizerId } = organizerIdParamSchema.parse(req.params);
+
+    const organizer = await Organizer.findById(organizerId)
+      .select("_id slug name")
+      .lean();
+
+    if (!organizer) {
+      return next(new AppError("Organizer not found", 404));
+    }
+
+    const gallery = await Gallery.find({ organizerId })
+      .sort({ displayOrder: 1, createdAt: -1 })
+      .lean();
+
+    res.status(200).json({
+      status: "success",
+      results: gallery.length,
+      data: {
+        organizer: {
+          id: organizer._id,
+          slug: organizer.slug,
+          name: organizer.name,
+        },
+        gallery,
+      },
+    });
+  },
+);
+
+export const createAdminGalleryItem = catchAsync(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const { organizerId } = organizerIdParamSchema.parse(req.params);
+    const data = createGalleryItemSchema.parse(req.body);
+
+    const organizerExists = await Organizer.exists({ _id: organizerId });
+
+    if (!organizerExists) {
+      return next(new AppError("Organizer not found", 404));
+    }
+
+    const existingGalleryItem = await Gallery.findOne({
+      organizerId,
+      imageUrl: data.imageUrl,
+    }).lean();
+
+    if (existingGalleryItem) {
+      return next(
+        new AppError(
+          "This gallery image already exists for this organizer",
+          400,
+        ),
+      );
+    }
+
+    const galleryItem = await Gallery.create({
+      organizerId,
+      imageUrl: data.imageUrl,
+      caption: data.caption || "",
+      altText: data.altText || "",
+      displayOrder: data.displayOrder || 0,
+    });
+
+    res.status(201).json({
       status: "success",
       data: {
         galleryItem,

@@ -7,6 +7,7 @@ import {
   adminTicketIdParamSchema,
   adminTicketsQuerySchema,
 } from "../validations/adminTicket.schema";
+import { verifyTicketSchema } from "../validations/verifyTicket.schema";
 
 export const getAdminTickets = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
@@ -280,6 +281,52 @@ export const getAdminTicketById = catchAsync(
                 role: ticket.verifiedUser.role || "",
               }
             : null,
+        },
+      },
+    });
+  },
+);
+
+export const verifyAdminTicket = catchAsync(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const { ticketCode } = verifyTicketSchema.parse(req.body);
+
+    const normalizedTicketCode = ticketCode.trim().toUpperCase();
+
+    const ticket = await Ticket.findOne({
+      ticketCode: normalizedTicketCode,
+    });
+
+    if (!ticket) {
+      return next(new AppError("Invalid ticket", 404));
+    }
+
+    if (ticket.status === "checked-in") {
+      return res.status(409).json({
+        status: "fail",
+        message: "Ticket has already been used",
+        data: {
+          ticketCode: ticket.ticketCode,
+          ticketStatus: ticket.status,
+          checkedInAt: ticket.checkedInAt || null,
+        },
+      });
+    }
+
+    ticket.status = "checked-in";
+    ticket.checkedInAt = new Date();
+    ticket.verifiedBy = null;
+    await ticket.save();
+
+    res.status(200).json({
+      status: "success",
+      message: "Ticket verified successfully",
+      data: {
+        ticket: {
+          id: ticket._id,
+          ticketCode: ticket.ticketCode,
+          status: ticket.status,
+          checkedInAt: ticket.checkedInAt || null,
         },
       },
     });

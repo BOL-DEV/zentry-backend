@@ -3,7 +3,9 @@ import { getAdminAnalyticsSummary } from "../controllers/adminAnalyticController
 import { protectAdmin, restrictTo } from "../middlewares/protect";
 import {
   createAdminOrganizer,
+  createAdminGalleryItem,
   getAdminOrganizerById,
+  getAdminOrganizerGalleryItems,
   getAdminOrganizers,
   toggleAdminOrganizerActiveState,
   updateAdminGalleryItem,
@@ -14,8 +16,13 @@ import {
   getAdminOrders,
 } from "../controllers/adminOrderController";
 import {
+  createAdminEventForOrganizer,
   getAdminEventById,
+  getAdminEventAttendees,
   getAdminEvents,
+  getAdminEventTicketTypes,
+  getAdminScannerSummary,
+  createAdminTicketTypeForEvent,
   updateAdminEvent,
   updateAdminTicketType,
   updateAdminTicketTypeQuantity,
@@ -23,7 +30,15 @@ import {
 import {
   getAdminTicketById,
   getAdminTickets,
+  verifyAdminTicket,
 } from "../controllers/adminTicketController";
+import {
+  getAdminDashboardUserSessions,
+  getAdminOrganizerDashboardUsers,
+  logoutAdminDashboardUserSession,
+  logoutAllAdminDashboardUserSessions,
+  toggleAdminDashboardUserActiveState,
+} from "../controllers/adminDashboardUserController";
 
 const router = Router();
 
@@ -39,11 +54,35 @@ router
   .get(getAdminOrganizerById)
   .patch(updateAdminOrganizer);
 router
+  .route("/organizers/:organizerId/events")
+  .post(createAdminEventForOrganizer);
+router
+  .route("/organizers/:organizerId/gallery")
+  .get(getAdminOrganizerGalleryItems)
+  .post(createAdminGalleryItem);
+router
   .route("/organizers/:organizerId/gallery/:galleryItemId")
   .patch(updateAdminGalleryItem);
 router
   .route("/organizers/:organizerId/toggle-active")
   .patch(toggleAdminOrganizerActiveState);
+
+/// DASHBOARD USER MANAGEMENT
+router
+  .route("/organizers/:organizerId/dashboard-users")
+  .get(getAdminOrganizerDashboardUsers);
+router
+  .route("/dashboard-users/:userId/sessions")
+  .get(getAdminDashboardUserSessions);
+router
+  .route("/dashboard-users/:userId/sessions/:sessionId/logout")
+  .patch(logoutAdminDashboardUserSession);
+router
+  .route("/dashboard-users/:userId/logout-all")
+  .patch(logoutAllAdminDashboardUserSessions);
+router
+  .route("/dashboard-users/:userId/toggle-active")
+  .patch(toggleAdminDashboardUserActiveState);
 
 /// ORDER MANAGEMENT
 router.route("/orders").get(getAdminOrders);
@@ -53,6 +92,12 @@ router.route("/orders/:orderId").get(getAdminOrderById);
 router.route("/events").get(getAdminEvents);
 router.route("/events/:eventId").get(getAdminEventById).patch(updateAdminEvent);
 router
+  .route("/events/:eventId/ticket-types")
+  .get(getAdminEventTicketTypes)
+  .post(createAdminTicketTypeForEvent);
+router.route("/events/:eventId/attendees").get(getAdminEventAttendees);
+router.route("/events/:eventId/scanner-summary").get(getAdminScannerSummary);
+router
   .route("/events/:eventId/ticket-types/:ticketTypeId")
   .patch(updateAdminTicketType);
 router
@@ -61,6 +106,7 @@ router
 
 /// TICKET MANAGEMENT
 router.route("/tickets").get(getAdminTickets);
+router.route("/tickets/verify").post(verifyAdminTicket);
 router.route("/tickets/:ticketId").get(getAdminTicketById);
 
 export default router;
