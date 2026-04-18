@@ -231,3 +231,57 @@ export const resetAdminDashboardUserPassword = catchAsync(
     });
   },
 );
+
+export const resetAdminOrganizerDashboardUserPassword = catchAsync(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const { organizerId } = organizerIdParamSchema.parse(req.params);
+    const { userId } = dashboardUserIdParamSchema.parse(req.params);
+    const { newPassword } = resetDashboardUserPasswordBodySchema.parse(
+      req.body,
+    );
+
+    const organizerExists = await Organizer.exists({ _id: organizerId });
+    if (!organizerExists) {
+      return next(new AppError("Organizer not found", 404));
+    }
+
+    const user = await DashboardUser.findOne({
+      _id: userId,
+      organizerId,
+    }).select("+password _id organizerId fullName email role isActive");
+
+    if (!user) {
+      return next(
+        new AppError("Dashboard user not found for this organizer", 404),
+      );
+    }
+
+    user.password = newPassword;
+    await user.save();
+
+    await UserSession.updateMany(
+      {
+        userId: user._id,
+        isActive: true,
+      },
+      {
+        isActive: false,
+      },
+    );
+
+    res.status(200).json({
+      status: "success",
+      message: "Password reset successfully. User must log in again.",
+      data: {
+        user: {
+          id: user._id,
+          organizerId: user.organizerId,
+          fullName: user.fullName,
+          email: user.email,
+          role: user.role,
+          isActive: user.isActive,
+        },
+      },
+    });
+  },
+);

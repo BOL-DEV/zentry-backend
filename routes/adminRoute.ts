@@ -39,6 +39,7 @@ import {
   getAdminOrganizerDashboardUsers,
   logoutAdminDashboardUserSession,
   logoutAllAdminDashboardUserSessions,
+  resetAdminOrganizerDashboardUserPassword,
   resetAdminDashboardUserPassword,
   toggleAdminDashboardUserActiveState,
 } from "../controllers/adminDashboardUserController";
@@ -80,6 +81,9 @@ router
 router
   .route("/organizers/:organizerId/dashboard-users")
   .get(getAdminOrganizerDashboardUsers);
+router
+  .route("/organizers/:organizerId/dashboard-users/:userId/reset-password")
+  .patch(resetAdminOrganizerDashboardUserPassword);
 router
   .route("/dashboard-users/:userId/sessions")
   .get(getAdminDashboardUserSessions);
