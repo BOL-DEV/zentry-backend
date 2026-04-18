@@ -9,6 +9,8 @@ import authRoute from "../routes/authRoute";
 import organizerDashboardRoute from "../routes/organizerDashboardRoute";
 import adminCronRoute from "../routes/adminCronRoute";
 import adminRoute from "../routes/adminRoute";
+import organizerRequestRoute from "../routes/organizerRequestRoute";
+import adminOrganizerRequestRoute from "../routes/adminOrganizerRequestRoute";
 import morgan from "morgan";
 import { globalErrorHandler } from "../middlewares/errorMiddleware";
 import cors from "cors";
@@ -36,7 +38,9 @@ app.use("/api/v1/orders", orderRoute);
 app.use("/api/v1/payments", paymentRoute);
 // app.use("/api/v1/tickets", ticketRoute);
 app.use("/api/v1/auth", authRoute);
+app.use("/api/v1/organizer-requests", organizerRequestRoute);
 app.use("/api/v1/admin/auth", adminAuthRoute);
+app.use("/api/v1/admin/organizer-requests", adminOrganizerRequestRoute);
 app.use("/api/v1/internal/cron", adminCronRoute);
 app.use("/api/v1/admin", adminRoute);
 
