@@ -28,12 +28,56 @@ const squadApi = axios.create({
   },
 });
 
+const maskAccountNumber = (value: string) => {
+  const trimmed = String(value || "").trim();
+  if (!/^\d{10,}$/.test(trimmed)) return trimmed;
+  return `${"*".repeat(Math.max(0, trimmed.length - 4))}${trimmed.slice(-4)}`;
+};
+
+const sanitizeLogData = (value: unknown): unknown => {
+  if (!value || typeof value !== "object") return value;
+
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeLogData(item));
+  }
+
+  const record = value as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+
+  for (const [key, v] of Object.entries(record)) {
+    if (
+      typeof v === "string" &&
+      [
+        "account_number",
+        "accountNumber",
+        "account_number_credited",
+        "accountNumberCredited",
+      ].includes(key)
+    ) {
+      out[key] = maskAccountNumber(v);
+      continue;
+    }
+
+    out[key] = sanitizeLogData(v);
+  }
+
+  return out;
+};
+
 const handleSquadRequestError = (
   error: unknown,
   fallbackMessage: string,
 ): never => {
   if (axios.isAxiosError(error)) {
-    console.log("Squad Error Data:", error.response?.data);
+    const method = (error.config?.method || "").toUpperCase();
+    const url = `${error.config?.baseURL || ""}${error.config?.url || ""}`;
+    const status = error.response?.status;
+    console.log("Squad Error:", {
+      method,
+      url,
+      status,
+      data: sanitizeLogData(error.response?.data),
+    });
     const responseData = error.response?.data as
       | { message?: string; error?: string }
       | undefined;

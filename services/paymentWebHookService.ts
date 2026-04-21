@@ -355,6 +355,8 @@ const attemptImmediateOrganizerPayout = async (orderId: mongoose.Types.ObjectId)
     {
       settlementStatus: "processing",
       settlementBatchId: transferReference,
+      settlementLastAttemptAt: new Date(),
+      settlementLastError: "",
     },
   );
 
@@ -377,14 +379,18 @@ const attemptImmediateOrganizerPayout = async (orderId: mongoose.Types.ObjectId)
         settlementStatus: "settled",
         settlementDate: new Date(),
         settlementBatchId: transferReference,
+        settlementLastError: "",
       },
     );
   } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
     await Order.updateOne(
       { _id: order._id },
       {
         settlementStatus: "failed",
         settlementBatchId: transferReference,
+        settlementLastError: message,
+        settlementLastAttemptAt: new Date(),
       },
     );
 
