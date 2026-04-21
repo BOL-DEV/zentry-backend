@@ -78,6 +78,51 @@ export const getOrganizerBySlug = catchAsync(
   },
 );
 
+export const getOrganizerDashboardProfile = catchAsync(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const user = req.user;
+
+    if (!user) {
+      return next(new AppError("User not found", 401));
+    }
+
+    const organizer = await Organizer.findById(user.organizerId).select(
+      "name slug logoUrl bannerUrl heroTitle heroSubtitle about contactEmail contactPhone location bankDetails createdAt updatedAt",
+    );
+
+    if (!organizer) {
+      return next(new AppError("Organizer not found", 404));
+    }
+
+    res.status(200).json({
+      status: "success",
+      data: {
+        organizer: {
+          id: organizer._id,
+          name: organizer.name,
+          slug: organizer.slug,
+          logoUrl: organizer.logoUrl,
+          bannerUrl: organizer.bannerUrl,
+          heroTitle: organizer.heroTitle,
+          heroSubtitle: organizer.heroSubtitle,
+          about: organizer.about,
+          contactEmail: organizer.contactEmail,
+          contactPhone: organizer.contactPhone,
+          location: organizer.location,
+          bankDetails: {
+            bankName: organizer.bankDetails?.bankName ?? "",
+            bankCode: organizer.bankDetails?.bankCode ?? "",
+            accountNumber: organizer.bankDetails?.accountNumber ?? "",
+            accountName: organizer.bankDetails?.accountName ?? "",
+          },
+          createdAt: organizer.createdAt,
+          updatedAt: organizer.updatedAt,
+        },
+      },
+    });
+  },
+);
+
 export const updateOrganizerProfile = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
     const user = req.user;
