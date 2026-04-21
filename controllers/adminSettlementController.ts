@@ -39,3 +39,22 @@ export const runAdminSettlementSync = catchAsync(
     });
   },
 );
+
+export const runAdminSettlementSyncAsAdmin = catchAsync(
+  async (_req: Request, res: Response) => {
+    const now = new Date();
+    const from = new Date(now);
+    from.setDate(from.getDate() - 7);
+
+    const result = await syncSquadSettlements({
+      from,
+      to: now,
+    });
+
+    res.status(200).json({
+      status: "success",
+      message: "Settlement sync completed",
+      data: result,
+    });
+  },
+);
