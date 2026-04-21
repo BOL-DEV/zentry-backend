@@ -43,6 +43,7 @@ import {
   resetAdminDashboardUserPassword,
   toggleAdminDashboardUserActiveState,
 } from "../controllers/adminDashboardUserController";
+import { runAdminSettlementSyncAsAdmin } from "../controllers/adminSettlementController";
 
 const router = Router();
 
@@ -124,5 +125,8 @@ router
 router.route("/tickets").get(getAdminTickets);
 router.route("/tickets/verify").post(verifyAdminTicket);
 router.route("/tickets/:ticketId").get(getAdminTicketById);
+
+/// SETTLEMENT
+router.route("/settlements/sync").post(runAdminSettlementSyncAsAdmin);
 
 export default router;

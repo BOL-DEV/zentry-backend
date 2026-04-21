@@ -36,32 +36,22 @@ export const syncSquadSettlements = async (options?: {
 
   const to = options?.to ?? new Date();
 
-  const eventMatch: Record<string, unknown> = {
-    date: { $lte: to },
-  };
-
-  if (options?.from) {
-    (eventMatch.date as any).$gte = options.from;
-  }
-
-  if (options?.eventIds?.length) {
-    eventMatch._id = { $in: options.eventIds };
-  }
-
-  const events = await Event.find(eventMatch)
-    .select("_id organizerId date")
-    .lean();
-
-  if (!events.length) return result;
-
-  const eventIds = events.map((event) => event._id);
-
   const match: Record<string, unknown> = {
     paymentGateway: "squad",
     paymentStatus: "paid",
     settlementStatus: { $in: ["pending", "failed"] },
-    eventId: { $in: eventIds },
   };
+
+  if (options?.from) {
+    match.paidAt = {
+      $gte: options.from,
+      $lte: to,
+    };
+  }
+
+  if (options?.eventIds?.length) {
+    match.eventId = { $in: options.eventIds };
+  }
 
   const limit = Math.max(1, Math.min(options?.limit ?? 250, 1000));
 
@@ -76,6 +66,16 @@ export const syncSquadSettlements = async (options?: {
   result.ordersMatched = orders.length;
 
   if (!orders.length) return result;
+
+  const orderEventIds = Array.from(
+    new Set(orders.map((order) => String(order.eventId))),
+  ).map((id) => new mongoose.Types.ObjectId(id));
+
+  const events = await Event.find({ _id: { $in: orderEventIds } })
+    .select("_id organizerId")
+    .lean();
+
+  if (!events.length) return result;
 
   const organizerIds = Array.from(
     new Set(events.map((event) => String(event.organizerId))),
@@ -138,13 +138,21 @@ export const syncSquadSettlements = async (options?: {
         ? String(order.settlementBatchId).trim()
         : `PAYOUT-${paymentReference}`;
 
-      await Order.updateOne(
-        { _id: order._id, settlementStatus: { $ne: "settled" } },
+      const lockResult = await Order.updateOne(
+        {
+          _id: order._id,
+          settlementStatus: { $in: ["pending", "failed"] },
+        },
         {
           settlementStatus: "processing",
           settlementBatchId: transferReference,
         },
       );
+
+      // Another worker already picked this up (or webhook is processing it).
+      if (!lockResult.modifiedCount) {
+        continue;
+      }
 
       result.payoutsAttempted += 1;
 
