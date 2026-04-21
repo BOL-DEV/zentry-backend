@@ -2,7 +2,7 @@ import axios from "axios";
 import { AppError } from "../utils/appError";
 
 const SQUAD_API_KEY = process.env.SQUAD_API_KEY;
-const SQUAD_BASE_URL = "https://sandbox-api-d.squadco.com";
+const SQUAD_BASE_URL = "https://api-d.squadco.com";
 
 const squadApi = axios.create({
   baseURL: SQUAD_BASE_URL,
