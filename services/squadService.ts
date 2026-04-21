@@ -2,7 +2,23 @@ import axios from "axios";
 import { AppError } from "../utils/appError";
 
 const SQUAD_API_KEY = process.env.SQUAD_API_KEY;
-const SQUAD_BASE_URL = "https://api-d.squadco.com";
+const SQUAD_BASE_URL = process.env.SQUAD_BASE_URL || "https://api-d.squadco.com";
+
+const ensureMerchantPrefixedReference = (reference: string) => {
+  const merchantId = String(process.env.SQUAD_MERCHANT_ID || "").trim();
+  const trimmedRef = String(reference || "").trim();
+
+  if (!trimmedRef) {
+    throw new AppError("transaction_reference is required", 400);
+  }
+
+  if (!merchantId) {
+    throw new AppError("SQUAD_MERCHANT_ID is not configured", 500);
+  }
+
+  const prefix = `${merchantId}_`;
+  return trimmedRef.startsWith(prefix) ? trimmedRef : `${prefix}${trimmedRef}`;
+};
 
 const squadApi = axios.create({
   baseURL: SQUAD_BASE_URL,
@@ -63,6 +79,38 @@ export const SquadService = {
     }
   },
 
+  lookupBankAccount: async (lookupData: {
+    bank_code: string;
+    account_number: string;
+  }): Promise<{ account_name: string; account_number: string }> => {
+    if (!process.env.SQUAD_API_KEY) {
+      throw new AppError("SQUAD_API_KEY is not configured", 500);
+    }
+
+    try {
+      const response = await squadApi.post("/payout/account/lookup", {
+        bank_code: lookupData.bank_code,
+        account_number: lookupData.account_number,
+      });
+
+      const data = response.data?.data;
+      const accountName = typeof data?.account_name === "string" ? data.account_name : "";
+      const accountNumber =
+        typeof data?.account_number === "string" ? data.account_number : "";
+
+      if (!accountName || !accountNumber) {
+        throw new AppError("Failed to lookup bank account", 400);
+      }
+
+      return { account_name: accountName, account_number: accountNumber };
+    } catch (error) {
+      return handleSquadRequestError(
+        error,
+        "Failed to lookup bank account via Squad",
+      );
+    }
+  },
+
   /**
    * PAYOUT TO ORGANIZER
    */
@@ -78,13 +126,46 @@ export const SquadService = {
     }
 
     try {
+      // Squad requires the account to be looked up/vetted before transfer.
+      const lookup = await SquadService.lookupBankAccount({
+        bank_code: payoutData.bank_code,
+        account_number: payoutData.account_number,
+      });
+
+      // Squad docs: transaction_reference must be unique and must include merchant ID.
+      const transaction_reference = ensureMerchantPrefixedReference(
+        payoutData.transaction_reference,
+      );
+
       const response = await squadApi.post("/payout/transfer", {
-        remark: "Zentry Organizer Payout",
-        ...payoutData,
+        remark: `ZENTRY_${transaction_reference}`,
+        bank_code: payoutData.bank_code,
+        currency_id: "NGN",
+        amount: String(payoutData.amount),
+        account_number: lookup.account_number,
+        transaction_reference,
+        account_name: lookup.account_name,
       });
       return response.data;
     } catch (error) {
       handleSquadRequestError(error, "Failed to transfer payout via Squad");
+    }
+  },
+
+  requeryTransfer: async (transaction_reference: string) => {
+    if (!process.env.SQUAD_API_KEY) {
+      throw new AppError("SQUAD_API_KEY is not configured", 500);
+    }
+
+    try {
+      const response = await squadApi.post("/payout/requery", {
+        transaction_reference: ensureMerchantPrefixedReference(
+          transaction_reference,
+        ),
+      });
+      return response.data;
+    } catch (error) {
+      handleSquadRequestError(error, "Failed to requery transfer via Squad");
     }
   },
 };
