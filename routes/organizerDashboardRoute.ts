@@ -28,7 +28,10 @@ import {
   logoutOneStaffSession,
   resetStaffPassword,
 } from "../controllers/staffSessionController";
-import { updateOrganizerProfile } from "../controllers/organizerController";
+import {
+  getOrganizerDashboardProfile,
+  updateOrganizerProfile,
+} from "../controllers/organizerController";
 
 const router = Router();
 
@@ -50,7 +53,10 @@ router
   .route("/gallery/:galleryItemId")
   .patch(restrictTo("organizer"), updateGalleryItem);
 
-router.route("/profile").patch(restrictTo("organizer"), updateOrganizerProfile);
+router
+  .route("/profile")
+  .get(restrictTo("organizer"), getOrganizerDashboardProfile)
+  .patch(restrictTo("organizer"), updateOrganizerProfile);
 
 router
   .route("/overall-settlement-summary")
