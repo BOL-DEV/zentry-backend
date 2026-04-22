@@ -6,7 +6,7 @@ const bankDetailsSchema = z
     bankCode: z
       .string()
       .trim()
-      .regex(/^\d{6}$/, "Bank code must be 3 digits")
+      .regex(/^\d{6}$/, "Bank code must be 6 digits")
       .optional(),
     accountNumber: z
       .string()

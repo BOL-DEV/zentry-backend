@@ -2,23 +2,8 @@ import axios from "axios";
 import { AppError } from "../utils/appError";
 
 const SQUAD_API_KEY = process.env.SQUAD_API_KEY;
-const SQUAD_BASE_URL = process.env.SQUAD_BASE_URL || "https://api-d.squadco.com";
-
-const ensureMerchantPrefixedReference = (reference: string) => {
-  const merchantId = String(process.env.SQUAD_MERCHANT_ID || "").trim();
-  const trimmedRef = String(reference || "").trim();
-
-  if (!trimmedRef) {
-    throw new AppError("transaction_reference is required", 400);
-  }
-
-  if (!merchantId) {
-    throw new AppError("SQUAD_MERCHANT_ID is not configured", 500);
-  }
-
-  const prefix = `${merchantId}_`;
-  return trimmedRef.startsWith(prefix) ? trimmedRef : `${prefix}${trimmedRef}`;
-};
+const SQUAD_BASE_URL = "https://api-d.squadco.com";
+const SQUAD_MERCHANT_ID = process.env.SQUAD_MERCHANT_ID;
 
 const squadApi = axios.create({
   baseURL: SQUAD_BASE_URL,
@@ -27,26 +12,6 @@ const squadApi = axios.create({
     "Content-Type": "application/json",
   },
 });
-
-const handleSquadRequestError = (
-  error: unknown,
-  fallbackMessage: string,
-): never => {
-  if (axios.isAxiosError(error)) {
-    console.log("Squad Error Data:", error.response?.data);
-    const responseData = error.response?.data as
-      | { message?: string; error?: string }
-      | undefined;
-    const message =
-      responseData?.message ||
-      responseData?.error ||
-      error.message ||
-      fallbackMessage;
-    const statusCode = error.response?.status || 500;
-    throw new AppError(message, statusCode);
-  }
-  throw new AppError(fallbackMessage, 500);
-};
 
 export const SquadService = {
   initiatePayment: async (paymentData: {
@@ -75,7 +40,7 @@ export const SquadService = {
       // Returns { checkout_url: "..." }
       return response.data.data;
     } catch (error) {
-      handleSquadRequestError(error, "Failed to initiate Squad payment");
+      throw new AppError("Failed to initiate Squad payment", 500);
     }
   },
 
@@ -83,10 +48,6 @@ export const SquadService = {
     bank_code: string;
     account_number: string;
   }): Promise<{ account_name: string; account_number: string }> => {
-    if (!process.env.SQUAD_API_KEY) {
-      throw new AppError("SQUAD_API_KEY is not configured", 500);
-    }
-
     try {
       const response = await squadApi.post("/payout/account/lookup", {
         bank_code: lookupData.bank_code,
@@ -94,20 +55,21 @@ export const SquadService = {
       });
 
       const data = response.data?.data;
-      const accountName = typeof data?.account_name === "string" ? data.account_name : "";
-      const accountNumber =
-        typeof data?.account_number === "string" ? data.account_number : "";
 
-      if (!accountName || !accountNumber) {
-        throw new AppError("Failed to lookup bank account", 400);
-      }
+      // const accountName =
+      //   typeof data?.account_name === "string" ? data.account_name : "";
+      // const accountNumber =
+      //   typeof data?.account_number === "string" ? data.account_number : "";
 
-      return { account_name: accountName, account_number: accountNumber };
+      // if (!accountName || !accountNumber) {
+      //   throw new AppError("Failed to lookup bank account", 400);
+      // }
+
+      // return { account_name: accountName, account_number: accountNumber };
+
+      return data;
     } catch (error) {
-      return handleSquadRequestError(
-        error,
-        "Failed to lookup bank account via Squad",
-      );
+      throw new AppError("Failed to lookup bank account via Squad", 500);
     }
   },
 
@@ -121,10 +83,6 @@ export const SquadService = {
     account_name: string;
     transaction_reference: string;
   }) => {
-    if (!process.env.SQUAD_API_KEY) {
-      throw new AppError("SQUAD_API_KEY is not configured", 500);
-    }
-
     try {
       // Squad requires the account to be looked up/vetted before transfer.
       const lookup = await SquadService.lookupBankAccount({
@@ -133,9 +91,7 @@ export const SquadService = {
       });
 
       // Squad docs: transaction_reference must be unique and must include merchant ID.
-      const transaction_reference = ensureMerchantPrefixedReference(
-        payoutData.transaction_reference,
-      );
+      const transaction_reference = `${SQUAD_MERCHANT_ID}_${payoutData.transaction_reference}`;
 
       const response = await squadApi.post("/payout/transfer", {
         remark: `ZENTRY_${transaction_reference}`,
@@ -148,24 +104,25 @@ export const SquadService = {
       });
       return response.data;
     } catch (error) {
-      handleSquadRequestError(error, "Failed to transfer payout via Squad");
+      // throw new AppError("Failed to transfer payout via Squad", 500);
+      throw error;
     }
   },
 
-  requeryTransfer: async (transaction_reference: string) => {
-    if (!process.env.SQUAD_API_KEY) {
-      throw new AppError("SQUAD_API_KEY is not configured", 500);
-    }
+  //   requeryTransfer: async (transaction_reference: string) => {
+  //     if (!process.env.SQUAD_API_KEY) {
+  //       throw new AppError("SQUAD_API_KEY is not configured", 500);
+  //     }
 
-    try {
-      const response = await squadApi.post("/payout/requery", {
-        transaction_reference: ensureMerchantPrefixedReference(
-          transaction_reference,
-        ),
-      });
-      return response.data;
-    } catch (error) {
-      handleSquadRequestError(error, "Failed to requery transfer via Squad");
-    }
-  },
+  //     try {
+  //       const response = await squadApi.post("/payout/requery", {
+  //         transaction_reference: ensureMerchantPrefixedReference(
+  //           transaction_reference,
+  //         ),
+  //       });
+  //       return response.data;
+  //     } catch (error) {
+  //       throw new AppError("Failed to requery transfer via Squad", 500);
+  //     }
+  //   },
 };

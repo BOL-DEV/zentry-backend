@@ -288,109 +288,119 @@ const fulfillPaidOrder = async ({
   };
 };
 
-const attemptImmediateOrganizerPayout = async (orderId: mongoose.Types.ObjectId) => {
-  const order = await Order.findById(orderId)
-    .select(
-      "_id eventId paymentGateway paymentStatus paymentReference organizerPayoutAmount settlementStatus settlementBatchId",
-    )
-    .lean();
+// const attemptImmediateOrganizerPayout = async (orderId: mongoose.Types.ObjectId) => {
 
-  if (!order) return;
+//   const order = await Order.findById(orderId)
+//     .select(
+//       "_id eventId paymentGateway paymentStatus paymentReference organizerPayoutAmount settlementStatus settlementBatchId",
+//     )
+//     .lean();
 
-  if (order.paymentGateway !== "squad" || order.paymentStatus !== "paid") {
-    return;
-  }
+//   if (!order) return;
 
-  if (order.settlementStatus === "settled") {
-    return;
-  }
+//   if (order.paymentGateway !== "squad" || order.paymentStatus !== "paid") {
+//     return;
+//   }
 
-  const payoutAmount = Number(order.organizerPayoutAmount || 0);
-  if (payoutAmount <= 0) {
-    // No payout required (should already be settled by fulfillment)
-    return;
-  }
+//   if (order.settlementStatus === "settled") {
+//     return;
+//   }
 
-  if (order.settlementStatus !== "pending" && order.settlementStatus !== "failed") {
-    return;
-  }
+//   const payoutAmount = Number(order.organizerPayoutAmount || 0);
+//   if (payoutAmount <= 0) {
+//     // No payout required (should already be settled by fulfillment)
+//     return;
+//   }
 
-  const event = await Event.findById(order.eventId)
-    .select("_id organizerId")
-    .lean();
-  if (!event) return;
+//   if (order.settlementStatus !== "pending" && order.settlementStatus !== "failed") {
+//     return;
+//   }
 
-  const organizer = await Organizer.findById(event.organizerId)
-    .select("_id bankDetails")
-    .lean();
-  if (!organizer) return;
+//   const event = await Event.findById(order.eventId)
+//     .select("_id organizerId")
+//     .lean();
+//   if (!event) return;
 
-  const bank = (organizer as any).bankDetails || {};
-  const bankCode = typeof bank.bankCode === "string" ? bank.bankCode.trim() : "";
-  const accountNumber =
-    typeof bank.accountNumber === "string" ? bank.accountNumber.trim() : "";
-  const accountName =
-    typeof bank.accountName === "string" ? bank.accountName.trim() : "";
+//   const organizer = await Organizer.findById(event.organizerId)
+//     .select("_id bankDetails")
+//     .lean();
+//   if (!organizer) return;
 
-  if (!bankCode || !accountNumber || !accountName) {
-    // Can't pay out without bank details; leave as pending/failed for later.
-    return;
-  }
+//   const bank = (organizer as any).bankDetails || {};
+//   const bankCode = typeof bank.bankCode === "string" ? bank.bankCode.trim() : "";
+//   const accountNumber =
+//     typeof bank.accountNumber === "string" ? bank.accountNumber.trim() : "";
+//   const accountName =
+//     typeof bank.accountName === "string" ? bank.accountName.trim() : "";
 
-  const paymentReference = String(order.paymentReference || "").trim();
-  if (!paymentReference) {
-    return;
-  }
+//   if (!bankCode || !accountNumber || !accountName) {
+//     // Can't pay out without bank details; leave as pending/failed for later.
+//     return;
+//   }
 
-  const transferReference = String(order.settlementBatchId || "").trim()
-    ? String(order.settlementBatchId).trim()
-    : `PAYOUT-${paymentReference}`;
+//   const paymentReference = String(order.paymentReference || "").trim();
+//   if (!paymentReference) {
+//     return;
+//   }
 
-  // Mark processing (idempotent guard)
-  const updated = await Order.updateOne(
-    {
-      _id: order._id,
-      settlementStatus: { $in: ["pending", "failed"] },
-    },
-    {
-      settlementStatus: "processing",
-      settlementBatchId: transferReference,
-    },
-  );
+//   const transferReference = String(order.settlementBatchId || "").trim()
+//     ? String(order.settlementBatchId).trim()
+//     : `PAYOUT-${paymentReference}`;
 
-  if (!updated.modifiedCount) {
-    return;
-  }
+//   // Mark processing (idempotent guard)
+//   const updated = await Order.updateOne(
+//     {
+//       _id: order._id,
+//       settlementStatus: { $in: ["pending", "failed"] },
+//     },
+//     {
+//       settlementStatus: "processing",
+//       settlementBatchId: transferReference,
+//       settlementLastAttemptAt: new Date(),
+//       settlementLastError: "",
+//     },
+//   );
 
-  try {
-    await SquadService.transferToOrganizer({
-      amount: Math.round(payoutAmount * 100),
-      bank_code: bankCode,
-      account_number: accountNumber,
-      account_name: accountName,
-      transaction_reference: transferReference,
-    });
+//   if (!updated.modifiedCount) {
+//     return;
+//   }
 
-    await Order.updateOne(
-      { _id: order._id },
-      {
-        settlementStatus: "settled",
-        settlementDate: new Date(),
-        settlementBatchId: transferReference,
-      },
-    );
-  } catch (err) {
-    await Order.updateOne(
-      { _id: order._id },
-      {
-        settlementStatus: "failed",
-        settlementBatchId: transferReference,
-      },
-    );
+//   try {
+//     await SquadService.transferToOrganizer({
+//       amount: Math.round(payoutAmount * 100),
+//       bank_code: bankCode,
+//       account_number: accountNumber,
+//       account_name: accountName,
+//       transaction_reference: transferReference,
+//     });
 
-    console.error("Immediate organizer payout failed:", err);
-  }
-};
+//     await Order.updateOne(
+//       { _id: order._id },
+//       {
+//         settlementStatus: "settled",
+//         settlementDate: new Date(),
+//         settlementBatchId: transferReference,
+//         settlementLastError: "",
+//       },
+//     );
+//   } catch (err) {
+//     const message = err instanceof Error ? err.message : "Unknown error";
+//     await Order.updateOne(
+//       { _id: order._id },
+//       {
+//         settlementStatus: "failed",
+//         settlementBatchId: transferReference,
+//         settlementLastError: message,
+//         settlementLastAttemptAt: new Date(),
+//       },
+//     );
+
+//     console.error("Immediate organizer payout failed:", err);
+//   }
+// };
+
+
+
 
 export const handleSquadWebhook = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
@@ -438,16 +448,6 @@ export const handleSquadWebhook = catchAsync(
       return res.sendStatus(200);
     }
 
-    // Idempotency: if payment was already confirmed but settlement is still pending/failed,
-    // attempt immediate payout again using the same transfer reference.
-    if (
-      order.paymentStatus === "paid" &&
-      (order.settlementStatus === "pending" || order.settlementStatus === "failed")
-    ) {
-      await attemptImmediateOrganizerPayout(order._id);
-      return res.sendStatus(200);
-    }
-
     if (order.paymentStatus === "paid") {
       return res.sendStatus(200);
     }
@@ -484,7 +484,7 @@ export const handleSquadWebhook = catchAsync(
           createdTickets: fulfillment.createdTickets,
           orderItems: fulfillment.orderItems,
         }),
-        attemptImmediateOrganizerPayout(pendingOrder._id),
+        attemptOrganizerPayout(pendingOrder, fulfillment.event),
       ]);
 
       return res.sendStatus(200);
@@ -495,3 +495,32 @@ export const handleSquadWebhook = catchAsync(
     }
   },
 );
+
+async function attemptOrganizerPayout(order: any, event: any) {
+  try {
+    // Assuming event.organizerBankDetails contains: bankCode, accountNumber
+    if (!event.organizerBankCode || !event.organizerAccountNumber) {
+      console.warn(`No bank details for organizer of event: ${event._id}`);
+      return;
+    }
+
+    await SquadService.transferToOrganizer({
+      amount: Math.round(order.organizerPayoutAmount * 100), // Convert Naira to Kobo
+      bank_code: event.organizerBankCode,
+      account_number: event.organizerAccountNumber,
+      account_name: event.organizerAccountName || "", // Service will re-verify via Lookup
+      transaction_reference: `PAY-${order.paymentReference}`,
+    });
+
+    // Update order to show payout is done
+    await Order.findByIdAndUpdate(order._id, { settlementStatus: "completed" });
+  } catch (error: any) {
+    // Log the error but don't crash the webhook.
+    // This will likely hit "Insufficient Funds" until your wallet has a buffer.
+    console.error(
+      "Organizer Payout Failed:",
+      error.response?.data || error.message,
+    );
+    await Order.findByIdAndUpdate(order._id, { settlementStatus: "failed" });
+  }
+}

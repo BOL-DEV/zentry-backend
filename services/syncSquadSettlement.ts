@@ -146,6 +146,8 @@ export const syncSquadSettlements = async (options?: {
         {
           settlementStatus: "processing",
           settlementBatchId: transferReference,
+          settlementLastAttemptAt: new Date(),
+          settlementLastError: "",
         },
       );
 
@@ -170,6 +172,7 @@ export const syncSquadSettlements = async (options?: {
           settlementStatus: "settled",
           settlementDate: new Date(),
           settlementBatchId: transferReference,
+          settlementLastError: "",
         },
       );
 
@@ -182,10 +185,14 @@ export const syncSquadSettlements = async (options?: {
         message: error instanceof Error ? error.message : "Unknown error",
       });
 
+      const message = error instanceof Error ? error.message : "Unknown error";
+
       await Order.updateOne(
         { _id: order._id },
         {
           settlementStatus: "failed",
+          settlementLastError: message,
+          settlementLastAttemptAt: new Date(),
         },
       );
     }

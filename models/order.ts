@@ -24,6 +24,8 @@ export interface IOrder {
   settlementStatus: "pending" | "processing" | "settled" | "failed";
   settlementBatchId?: string;
   settlementDate?: Date;
+  settlementLastError?: string;
+  settlementLastAttemptAt?: Date;
 
   createdAt: Date;
   updatedAt: Date;
@@ -104,6 +106,12 @@ const OrderSchema = new Schema<IOrder>(
       default: "",
     },
     settlementDate: Date,
+    settlementLastError: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    settlementLastAttemptAt: Date,
     organizerPayoutAmount: {
       type: Number,
       default: 0,
