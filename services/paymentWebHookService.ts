@@ -446,7 +446,7 @@ export const handleSquadWebhook = catchAsync(
     const order = await Order.findOne({ paymentReference: reference }).populate(
       {
         path: "eventId",
-        populate: { path: "organizer" }, // This gets the User document owning the event
+        populate: { path: "organizerId" }, // This gets the User document owning the event
       },
     );
 
@@ -504,35 +504,48 @@ export const handleSquadWebhook = catchAsync(
 
 async function attemptOrganizerPayout(order: any, event: any) {
   try {
+    // 1. Follow the path: event -> organizerId -> bankDetails
+    const organizer = event?.organizerId;
+    const details = organizer?.bankDetails;
 
-    const { bankDetails } = event.organizer;
-
-    // Assuming event.organizerBankDetails contains: bankCode, accountNumber
-    if (
-      !bankDetails?.organizerBankCode ||
-      !bankDetails?.organizerAccountNumber
-    ) {
-      console.warn(`No bank details for organizer of event: ${event._id}`);
+    // 2. Safety Checks
+    if (!organizer) {
+      console.warn(
+        `[PAYOUT] No organizer object found for event: ${event?._id}`,
+      );
       return;
     }
 
+    if (!details || !details.bankCode || !details.accountNumber) {
+      console.warn(
+        `[PAYOUT] Missing bank details for Organizer: ${organizer._id}`,
+      );
+      return;
+    }
+
+    // 3. Squad Transfer call
     await SquadService.transferToOrganizer({
-      amount: Math.round(order.organizerPayoutAmount * 100), // Convert Naira to Kobo
-      bank_code: bankDetails.organizerBankCode,
-      account_number: bankDetails.organizerAccountNumber,
-      account_name: bankDetails.organizerAccountName || "", // Service will re-verify via Lookup
+      amount: Math.round(order.organizerPayoutAmount * 100), // Naira to Kobo
+      bank_code: details.bankCode,
+      account_number: details.accountNumber,
+      account_name: details.accountName || "Organizer",
       transaction_reference: `PAY-${order.paymentReference}`,
     });
 
-    // Update order to show payout is done
-    await Order.findByIdAndUpdate(order._id, { settlementStatus: "completed" });
+    // 4. Update order status
+    await Order.findByIdAndUpdate(order._id, { settlementStatus: "settled" });
+    console.log(
+      `✅ Payout sent to ${details.accountName} for Order ${order.paymentReference}`,
+    );
   } catch (error: any) {
-    // Log the error but don't crash the webhook.
-    // This will likely hit "Insufficient Funds" until your wallet has a buffer.
     console.error(
-      "Organizer Payout Failed:",
+      "❌ Squad API Payout Error:",
       error.response?.data || error.message,
     );
-    await Order.findByIdAndUpdate(order._id, { settlementStatus: "failed" });
+
+    await Order.findByIdAndUpdate(order._id, {
+      settlementStatus: "failed",
+      settlementLastError: error.response?.data?.message || error.message,
+    });
   }
 }
