@@ -442,7 +442,13 @@ export const handleSquadWebhook = catchAsync(
       return next(new AppError("Payment reference is missing", 400));
     }
 
-    const order = await Order.findOne({ paymentReference: reference });
+    // Deep populate: Order -> Event -> Organizer
+    const order = await Order.findOne({ paymentReference: reference }).populate(
+      {
+        path: "eventId",
+        populate: { path: "organizer" }, // This gets the User document owning the event
+      },
+    );
 
     if (!order) {
       return res.sendStatus(200);
@@ -498,17 +504,23 @@ export const handleSquadWebhook = catchAsync(
 
 async function attemptOrganizerPayout(order: any, event: any) {
   try {
+
+    const { bankDetails } = event.organizer;
+
     // Assuming event.organizerBankDetails contains: bankCode, accountNumber
-    if (!event.organizerBankCode || !event.organizerAccountNumber) {
+    if (
+      !bankDetails?.organizerBankCode ||
+      !bankDetails?.organizerAccountNumber
+    ) {
       console.warn(`No bank details for organizer of event: ${event._id}`);
       return;
     }
 
     await SquadService.transferToOrganizer({
       amount: Math.round(order.organizerPayoutAmount * 100), // Convert Naira to Kobo
-      bank_code: event.organizerBankCode,
-      account_number: event.organizerAccountNumber,
-      account_name: event.organizerAccountName || "", // Service will re-verify via Lookup
+      bank_code: bankDetails.organizerBankCode,
+      account_number: bankDetails.organizerAccountNumber,
+      account_name: bankDetails.organizerAccountName || "", // Service will re-verify via Lookup
       transaction_reference: `PAY-${order.paymentReference}`,
     });
 
