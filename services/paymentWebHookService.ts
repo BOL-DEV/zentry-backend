@@ -504,38 +504,93 @@ export const handleSquadWebhook = catchAsync(
 
 async function attemptOrganizerPayout(order: any, event: any) {
   try {
-    // 1. Follow the path: event -> organizerId -> bankDetails
-    const organizer = event?.organizerId;
-    const details = organizer?.bankDetails;
+    const maskAccountNumber = (value: string) => {
+      const trimmed = String(value || "").trim();
+      if (!/^\d{10,}$/.test(trimmed)) return trimmed;
+      return `${"*".repeat(Math.max(0, trimmed.length - 4))}${trimmed.slice(-4)}`;
+    };
+
+    // 1. Resolve organizer id and load bank details (event.organizerId is not always populated)
+    const organizerId = event?.organizerId?._id || event?.organizerId;
+
+    if (!organizerId) {
+      console.warn(`[PAYOUT] Missing organizerId for event: ${event?._id}`);
+      return;
+    }
+
+    const organizer =
+      typeof event?.organizerId === "object" && event?.organizerId?.bankDetails
+        ? event.organizerId
+        : await Organizer.findById(organizerId).select("_id bankDetails").lean();
+
+    const details = (organizer as any)?.bankDetails;
 
     // 2. Safety Checks
     if (!organizer) {
+      console.warn(`[PAYOUT] Organizer not found: ${String(organizerId)}`);
+      return;
+    }
+
+    const bankCode = typeof details?.bankCode === "string" ? details.bankCode.trim() : "";
+    const accountNumber =
+      typeof details?.accountNumber === "string" ? details.accountNumber.trim() : "";
+    const accountName = typeof details?.accountName === "string" ? details.accountName.trim() : "";
+
+    if (!bankCode || !accountNumber || !accountName) {
       console.warn(
-        `[PAYOUT] No organizer object found for event: ${event?._id}`,
+        `[PAYOUT] Missing bank details for Organizer: ${String((organizer as any)._id)} (bankCode=${Boolean(
+          bankCode,
+        )}, accountNumber=${maskAccountNumber(accountNumber)}, accountName=${Boolean(accountName)})`,
       );
       return;
     }
 
-    if (!details || !details.bankCode || !details.accountNumber) {
-      console.warn(
-        `[PAYOUT] Missing bank details for Organizer: ${organizer._id}`,
-      );
+    if (!order?.paymentReference) {
+      console.warn(`[PAYOUT] Missing paymentReference for order: ${String(order?._id)}`);
+      return;
+    }
+
+    const transferReference =
+      typeof order?.settlementBatchId === "string" && order.settlementBatchId.trim()
+        ? order.settlementBatchId.trim()
+        : `PAYOUT-${order.paymentReference}`;
+
+    // 2b. Idempotent lock: only one worker (webhook/sync) can attempt payout.
+    const lock = await Order.updateOne(
+      { _id: order._id, settlementStatus: { $in: ["pending", "failed"] } },
+      {
+        settlementStatus: "processing",
+        settlementBatchId: transferReference,
+        settlementLastAttemptAt: new Date(),
+        settlementLastError: "",
+      },
+    );
+
+    if (!lock.modifiedCount) {
       return;
     }
 
     // 3. Squad Transfer call
     await SquadService.transferToOrganizer({
       amount: Math.round(order.organizerPayoutAmount * 100), // Naira to Kobo
-      bank_code: details.bankCode,
-      account_number: details.accountNumber,
-      account_name: details.accountName || "Organizer",
-      transaction_reference: `PAY-${order.paymentReference}`,
+      bank_code: bankCode,
+      account_number: accountNumber,
+      account_name: accountName,
+      transaction_reference: transferReference,
     });
 
     // 4. Update order status
-    await Order.findByIdAndUpdate(order._id, { settlementStatus: "settled" });
+    await Order.updateOne(
+      { _id: order._id },
+      {
+        settlementStatus: "settled",
+        settlementDate: new Date(),
+        settlementBatchId: transferReference,
+        settlementLastError: "",
+      },
+    );
     console.log(
-      `✅ Payout sent to ${details.accountName} for Order ${order.paymentReference}`,
+      `✅ Payout sent to ${accountName} for Order ${order.paymentReference}`,
     );
   } catch (error: any) {
     console.error(
@@ -543,9 +598,13 @@ async function attemptOrganizerPayout(order: any, event: any) {
       error.response?.data || error.message,
     );
 
-    await Order.findByIdAndUpdate(order._id, {
-      settlementStatus: "failed",
-      settlementLastError: error.response?.data?.message || error.message,
-    });
+    await Order.updateOne(
+      { _id: order._id },
+      {
+        settlementStatus: "failed",
+        settlementLastAttemptAt: new Date(),
+        settlementLastError: error.response?.data?.message || error.message,
+      },
+    );
   }
 }
