@@ -43,7 +43,13 @@ import {
   resetAdminDashboardUserPassword,
   toggleAdminDashboardUserActiveState,
 } from "../controllers/adminDashboardUserController";
-import { runAdminSettlementSyncAsAdmin } from "../controllers/adminSettlementController";
+import {
+  getAdminDailyPayouts,
+  getAdminOrganizerEventSettlementSummary,
+  getAdminOrganizerSettlementSummary,
+  runAdminSettlementSyncAsAdmin,
+  toggleAdminSettlementBatch,
+} from "../controllers/adminSettlementController";
 
 const router = Router();
 
@@ -77,6 +83,12 @@ router
 router
   .route("/organizers/:organizerId/organizer-session-limit")
   .patch(updateAdminOrganizerOrganizerSessionLimit);
+router
+  .route("/organizers/:organizerId/settlements/overall-summary")
+  .get(getAdminOrganizerSettlementSummary);
+router
+  .route("/organizers/:organizerId/events/:eventId/settlement-summary")
+  .get(getAdminOrganizerEventSettlementSummary);
 
 /// DASHBOARD USER MANAGEMENT
 router
@@ -128,5 +140,9 @@ router.route("/tickets/:ticketId").get(getAdminTicketById);
 
 /// SETTLEMENT
 router.route("/settlements/sync").post(runAdminSettlementSyncAsAdmin);
+router.route("/settlements/daily-payouts").get(getAdminDailyPayouts);
+router
+  .route("/settlements/batches/:batchId/toggle-settled")
+  .patch(toggleAdminSettlementBatch);
 
 export default router;

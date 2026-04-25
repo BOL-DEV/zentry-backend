@@ -7,7 +7,11 @@ import { TicketType } from "../models/ticketTypes";
 import { eventIdParamSchema } from "../validations/event.schema";
 import { AppError } from "../utils/appError";
 import { catchAsync } from "../utils/catchAsync";
-import { syncSquadSettlements } from "../services/syncSquadSettlement";
+import {
+  getEventSettlementSummaryData,
+  getOrganizerSettlementSummaryData,
+  syncSquadSettlements,
+} from "../services/syncSquadSettlement";
 
 export const getOrganizerDashboardSummary = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
@@ -255,115 +259,26 @@ export const getEventSettlementSummary = catchAsync(
       return next(new AppError("Event not found", 404));
     }
 
-    const summaryAgg = await Order.aggregate([
-      {
-        $match: {
-          eventId: event._id,
-          paymentStatus: "paid",
-        },
-      },
-      {
-        $group: {
-          _id: null,
-          confirmedSales: { $sum: "$totalAmount" },
-          platformFees: { $sum: "$platformFeeTotal" },
-          squadGatewayFees: { $sum: "$squadGatewayFee" },
-          squadTransferFees: { $sum: "$squadTransferFee" },
-          organizerPayoutAmount: { $sum: "$organizerPayoutAmount" },
-          totalPaidOrders: { $sum: 1 },
-
-          pendingSettlement: {
-            $sum: {
-              $cond: [
-                { $in: ["$settlementStatus", ["pending", "processing"]] },
-                "$organizerPayoutAmount",
-                0,
-              ],
-            },
-          },
-
-          settled: {
-            $sum: {
-              $cond: [
-                { $eq: ["$settlementStatus", "settled"] },
-                "$organizerPayoutAmount",
-                0,
-              ],
-            },
-          },
-        },
-      },
-    ]);
-
-    const summary = summaryAgg[0] || {
-      confirmedSales: 0,
-      pendingSettlement: 0,
-      settled: 0,
-      platformFees: 0,
-      squadGatewayFees: 0,
-      squadTransferFees: 0,
-      organizerPayoutAmount: 0,
-      totalPaidOrders: 0,
-    };
-
     // Pagination
     const page = Math.max(1, parseInt(req.query.page as string) || 1);
     const perPage = Math.max(
       1,
       Math.min(100, parseInt(req.query.perPage as string) || 20),
     );
-    const skip = (page - 1) * perPage;
-
-    const totalOrders = await Order.countDocuments({
-      eventId: event._id,
-      paymentStatus: "paid",
+    const data = await getEventSettlementSummaryData({
+      organizerId: req.user.organizerId,
+      eventId,
+      page,
+      perPage,
     });
 
-    const orders = await Order.find({
-      eventId: event._id,
-      paymentStatus: "paid",
-    })
-      .select(
-        "buyerName buyerEmail paymentReference totalAmount platformFeeTotal squadGatewayFee squadTransferFee organizerPayoutAmount settlementStatus paidAt settlementDate",
-      )
-      .sort({ paidAt: -1, createdAt: -1 })
-      .skip(skip)
-      .limit(perPage)
-      .lean();
-
-    const totalPages = Math.ceil(totalOrders / perPage);
+    if (!data) {
+      return next(new AppError("Event not found", 404));
+    }
 
     res.status(200).json({
       status: "success",
-      data: {
-        event: {
-          id: event._id,
-          title: event.title,
-          date: event.date,
-          location: event.location,
-        },
-        summary,
-        pagination: {
-          page,
-          perPage,
-          totalOrders,
-          totalPages,
-        },
-        orders: orders.map((order) => ({
-          id: order._id,
-          buyerName: order.buyerName,
-          buyerEmail: order.buyerEmail,
-          paymentReference: order.paymentReference,
-          grossAmount: order.totalAmount,
-          platformFeeTotal: order.platformFeeTotal,
-          squadGatewayFee: order.squadGatewayFee || 0,
-          squadTransferFee: order.squadTransferFee || 0,
-          organizerPayoutAmount: order.organizerPayoutAmount || 0,
-          settlementStatus: order.settlementStatus,
-          paidAt: order.paidAt,
-          settlementDate: order.settlementDate,
-        })),
-      },
+      data,
     });
   },
 );
@@ -407,218 +322,21 @@ export const getOrganizerSettlementSummary = catchAsync(
 
     const organizerId = req.user.organizerId;
 
-    const organizerEvents = await Event.find({
-      organizerId,
-    })
-      .select("_id title date location")
-      .lean();
-
-    const eventIds = organizerEvents.map((event) => event._id);
-
-    if (!eventIds.length) {
-      return res.status(200).json({
-        status: "success",
-        data: {
-          summary: {
-            confirmedSales: 0,
-            pendingSettlement: 0,
-            settled: 0,
-            platformFees: 0,
-            squadGatewayFees: 0,
-            squadTransferFees: 0,
-            organizerPayoutAmount: 0,
-            totalPaidOrders: 0,
-            totalEventsWithSales: 0,
-          },
-          events: [],
-          recentOrders: [],
-        },
-      });
-    }
-
-    const summaryAgg = await Order.aggregate([
-      {
-        $match: {
-          eventId: { $in: eventIds },
-          paymentStatus: "paid",
-        },
-      },
-      {
-        $group: {
-          _id: null,
-          confirmedSales: { $sum: "$totalAmount" },
-          platformFees: { $sum: "$platformFeeTotal" },
-          squadGatewayFees: { $sum: "$squadGatewayFee" },
-          squadTransferFees: { $sum: "$squadTransferFee" },
-          organizerPayoutAmount: { $sum: "$organizerPayoutAmount" },
-          totalPaidOrders: { $sum: 1 },
-
-          pendingSettlement: {
-            $sum: {
-              $cond: [
-                { $in: ["$settlementStatus", ["pending", "processing"]] },
-                "$organizerPayoutAmount",
-                0,
-              ],
-            },
-          },
-
-          settled: {
-            $sum: {
-              $cond: [
-                { $eq: ["$settlementStatus", "settled"] },
-                "$organizerPayoutAmount",
-                0,
-              ],
-            },
-          },
-        },
-      },
-    ]);
-
-    const eventBreakdownAgg = await Order.aggregate([
-      {
-        $match: {
-          eventId: { $in: eventIds },
-          paymentStatus: "paid",
-        },
-      },
-      {
-        $group: {
-          _id: "$eventId",
-          confirmedSales: { $sum: "$totalAmount" },
-          platformFees: { $sum: "$platformFeeTotal" },
-          squadGatewayFees: { $sum: "$squadGatewayFee" },
-          squadTransferFees: { $sum: "$squadTransferFee" },
-          organizerPayoutAmount: { $sum: "$organizerPayoutAmount" },
-          totalPaidOrders: { $sum: 1 },
-
-          pendingSettlement: {
-            $sum: {
-              $cond: [
-                { $in: ["$settlementStatus", ["pending", "processing"]] },
-                "$organizerPayoutAmount",
-                0,
-              ],
-            },
-          },
-
-          settled: {
-            $sum: {
-              $cond: [
-                { $eq: ["$settlementStatus", "settled"] },
-                "$organizerPayoutAmount",
-                0,
-              ],
-            },
-          },
-        },
-      },
-      {
-        $sort: {
-          confirmedSales: -1,
-        },
-      },
-    ]);
-
-    const summary = summaryAgg[0] || {
-      confirmedSales: 0,
-      pendingSettlement: 0,
-      settled: 0,
-      platformFees: 0,
-      squadGatewayFees: 0,
-      squadTransferFees: 0,
-      organizerPayoutAmount: 0,
-      totalPaidOrders: 0,
-    };
-
-    const eventMap = new Map(
-      organizerEvents.map((event) => [event._id.toString(), event]),
-    );
-
-    const events = eventBreakdownAgg.map((item) => {
-      const event = eventMap.get(item._id.toString());
-
-      return {
-        eventId: item._id,
-        title: event?.title || "Unknown Event",
-        date: event?.date || null,
-        location: event?.location || "",
-        confirmedSales: item.confirmedSales,
-        pendingSettlement: item.pendingSettlement,
-        settled: item.settled,
-        platformFees: item.platformFees,
-        squadGatewayFees: item.squadGatewayFees,
-        squadTransferFees: item.squadTransferFees,
-        organizerPayoutAmount: item.organizerPayoutAmount,
-        totalPaidOrders: item.totalPaidOrders,
-      };
-    });
-
     // Pagination for recent orders
     const page = Math.max(1, parseInt(req.query.page as string) || 1);
     const perPage = Math.max(
       1,
       Math.min(100, parseInt(req.query.perPage as string) || 20),
     );
-    const skip = (page - 1) * perPage;
-
-    const totalOrders = await Order.countDocuments({
-      eventId: { $in: eventIds },
-      paymentStatus: "paid",
-    });
-
-    const recentOrders = await Order.find({
-      eventId: { $in: eventIds },
-      paymentStatus: "paid",
-    })
-      .select(
-        "eventId buyerName buyerEmail paymentReference totalAmount platformFeeTotal squadGatewayFee squadTransferFee organizerPayoutAmount settlementStatus paidAt settlementDate createdAt",
-      )
-      .sort({ paidAt: -1, createdAt: -1 })
-      .skip(skip)
-      .limit(perPage)
-      .lean();
-
-    const totalPages = Math.ceil(totalOrders / perPage);
-
-    const formattedRecentOrders = recentOrders.map((order) => {
-      const event = eventMap.get(order.eventId.toString());
-
-      return {
-        id: order._id,
-        eventId: order.eventId,
-        eventTitle: event?.title || "Unknown Event",
-        buyerName: order.buyerName,
-        buyerEmail: order.buyerEmail,
-        paymentReference: order.paymentReference,
-        grossAmount: order.totalAmount,
-        platformFeeTotal: order.platformFeeTotal,
-        squadGatewayFee: order.squadGatewayFee || 0,
-        squadTransferFee: order.squadTransferFee || 0,
-        organizerPayoutAmount: order.organizerPayoutAmount || 0,
-        settlementStatus: order.settlementStatus,
-        paidAt: order.paidAt,
-        settlementDate: order.settlementDate,
-      };
+    const data = await getOrganizerSettlementSummaryData({
+      organizerId,
+      page,
+      perPage,
     });
 
     res.status(200).json({
       status: "success",
-      data: {
-        summary: {
-          ...summary,
-          totalEventsWithSales: events.length,
-        },
-        events,
-        pagination: {
-          page,
-          perPage,
-          totalOrders,
-          totalPages,
-        },
-        recentOrders: formattedRecentOrders,
-      },
+      data,
     });
   },
 );
