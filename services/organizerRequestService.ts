@@ -53,7 +53,7 @@ export const resolveUniqueDashboardLoginEmail = async ({
   const normalizedDomain = (
     domain ||
     process.env.ORG_LOGIN_EMAIL_DOMAIN ||
-    "zentry.com"
+    "zentra.com"
   )
     .trim()
     .toLowerCase();

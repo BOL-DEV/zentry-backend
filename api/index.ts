@@ -47,7 +47,7 @@ app.use("/api/v1/admin", adminRoute);
 app.get("/", (_req, res) => {
   res.status(200).json({
     status: "success",
-    message: "Welcome to the Zentry API!",
+    message: "Welcome to the Zentra API!",
   });
 });
 

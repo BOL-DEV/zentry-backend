@@ -256,7 +256,7 @@ export const approveAdminOrganizerRequest = catchAsync(
     let emailSent = false;
 
     try {
-      const appName = process.env.APP_NAME || "Zentry";
+      const appName = process.env.APP_NAME || "Zentra";
       const dashboardUrl = process.env.DASHBOARD_URL || "";
 
       const subject = `${appName}: Organizer application approved`;

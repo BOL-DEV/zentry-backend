@@ -5,7 +5,7 @@ info:
 
 http:
   method: POST
-  url: zentry-backend.vercel.app/api/v1/organizer/pulse-events/gallery
+  url: zentra-backend.vercel.app/api/v1/organizer/pulse-events/gallery
   body:
     type: json
     data: |-
