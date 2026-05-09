@@ -1,7 +1,7 @@
 opencollection: 1.0.0
 
 info:
-  name: Zentry
+  name: Zentra
 config:
   proxy:
     inherit: true

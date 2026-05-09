@@ -101,7 +101,7 @@ export const createPurchase = catchAsync(
         ? Number((totalAmount * SQUAD_MODAL_GATEWAY_PERCENT).toFixed(2))
         : 0;
 
-    // Organizer Payout = Total - (Zentry Fee) - (Squad 1.5% Fee) - (Transfer 25 Naira)
+    // Organizer payout = Total - (Zentra fee) - (Squad 1.5% fee) - (Transfer 25 Naira)
     const organizerPayoutAmount =
       paymentGateway === "squad"
         ? Math.max(

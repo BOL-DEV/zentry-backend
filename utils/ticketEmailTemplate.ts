@@ -50,7 +50,7 @@ export const generateTicketEmailTemplate = ({
         ${ticketsHtml}
   
         <p style="margin-top:24px;">Please keep this email safe. You can also view your tickets in the app.</p>
-        <p style="margin-top:24px;">Thanks,<br/>Zentry</p>
+        <p style="margin-top:24px;">Thanks,<br/>Zentra</p>
       </div>
     `;
 };

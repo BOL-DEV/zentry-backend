@@ -203,7 +203,7 @@ export const SquadService = {
       );
 
       const response = await squadApi.post("/payout/transfer", {
-        remark: `ZENTRY_${transaction_reference}`,
+        remark: `ZENTRA_${transaction_reference}`,
         bank_code: payoutData.bank_code,
         currency_id: "NGN",
         amount: String(payoutData.amount),
