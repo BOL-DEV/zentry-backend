@@ -20,10 +20,20 @@ const organizerSchema = new Schema(
       required: [true, "Organizer logo is required"],
       trim: true,
     },
+    logoPublicId: {
+      type: String,
+      trim: true,
+      default: null,
+    },
     bannerUrl: {
       type: String,
       required: [true, "Organizer banner is required"],
       trim: true,
+    },
+    bannerPublicId: {
+      type: String,
+      trim: true,
+      default: null,
     },
     heroTitle: {
       type: String,

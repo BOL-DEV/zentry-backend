@@ -6,7 +6,9 @@ export interface IOrganizerRequest extends Document {
   name: string;
   email: string;
   logoUrl: string;
+  logoPublicId?: string | null;
   bannerUrl: string;
+  bannerPublicId?: string | null;
   heroTitle: string;
   heroSubtitle: string;
   phone: string;
@@ -49,10 +51,20 @@ const organizerRequestSchema = new Schema<IOrganizerRequest>(
       required: [true, "Organizer logo is required"],
       trim: true,
     },
+    logoPublicId: {
+      type: String,
+      trim: true,
+      default: null,
+    },
     bannerUrl: {
       type: String,
       required: [true, "Organizer banner is required"],
       trim: true,
+    },
+    bannerPublicId: {
+      type: String,
+      trim: true,
+      default: null,
     },
     heroTitle: {
       type: String,

@@ -20,6 +20,12 @@ import {
 } from "../validations/ticketType.schema";
 import { TicketType } from "../models/ticketTypes";
 import { organizerIdParamSchema } from "../validations/organizer.schema";
+import {
+  deleteCloudinaryAsset,
+  MEDIA_FOLDERS,
+  uploadImageBuffer,
+} from "../services/cloudinaryService";
+import { getUploadedFile } from "../utils/mediaHelpers";
 
 export const getAdminEvents = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
@@ -195,7 +201,7 @@ export const getAdminEvents = catchAsync(
 export const createAdminEventForOrganizer = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
     const { organizerId } = organizerIdParamSchema.parse(req.params);
-    const data = createEventSchema.parse(req.body);
+    const body = req.body as Record<string, unknown>;
 
     const organizerExists = await Organizer.exists({ _id: organizerId });
 
@@ -203,11 +209,11 @@ export const createAdminEventForOrganizer = catchAsync(
       return next(new AppError("Organizer not found", 404));
     }
 
-    const eventDate = new Date(data.date);
+    const eventDate = new Date(String(body.date || ""));
 
     const existingEvent = await Event.findOne({
       organizerId: new mongoose.Types.ObjectId(organizerId),
-      title: data.title,
+      title: String(body.title || ""),
       date: eventDate,
     }).lean();
 
@@ -220,18 +226,46 @@ export const createAdminEventForOrganizer = catchAsync(
       );
     }
 
-    const event = await Event.create({
-      ...data,
-      date: eventDate,
-      organizerId: new mongoose.Types.ObjectId(organizerId),
-    });
+    let uploadedPoster:
+      | {
+          url: string;
+          publicId: string;
+        }
+      | undefined;
 
-    res.status(201).json({
-      status: "success",
-      data: {
-        event,
-      },
-    });
+    try {
+      const posterFile = getUploadedFile(req, "poster");
+
+      if (posterFile) {
+        uploadedPoster = await uploadImageBuffer({
+          buffer: posterFile.buffer,
+          folder: MEDIA_FOLDERS.eventPoster,
+          filename: String(body.title || "event-poster"),
+        });
+      }
+
+      const data = createEventSchema.parse({
+        ...body,
+        ...(uploadedPoster ? { posterUrl: uploadedPoster.url } : {}),
+      });
+
+      const event = await Event.create({
+        ...data,
+        date: new Date(data.date),
+        organizerId: new mongoose.Types.ObjectId(organizerId),
+        posterPublicId: uploadedPoster?.publicId ?? null,
+      });
+
+      res.status(201).json({
+        status: "success",
+        data: {
+          event,
+        },
+      });
+    } catch (error) {
+      await deleteCloudinaryAsset(uploadedPoster?.publicId);
+      throw error;
+    }
   },
 );
 
@@ -370,11 +404,6 @@ export const getAdminEventById = catchAsync(
 export const updateAdminEvent = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
     const { eventId } = eventIdParamSchema.parse(req.params);
-    const data = updateEventSchema.parse(req.body);
-
-    if (!Object.keys(data).length) {
-      return next(new AppError("No updates provided", 400));
-    }
 
     const event = await Event.findById(eventId);
 
@@ -382,52 +411,95 @@ export const updateAdminEvent = catchAsync(
       return next(new AppError("Event not found", 404));
     }
 
-    const incomingTitle =
-      typeof data.title === "string" ? data.title.trim() : undefined;
-    const incomingDate =
-      typeof data.date === "string" ? new Date(data.date) : undefined;
+    let uploadedPoster:
+      | {
+          url: string;
+          publicId: string;
+        }
+      | undefined;
 
-    const nextTitle = incomingTitle ?? event.title;
-    const nextDate = incomingDate ?? event.date;
+    try {
+      const posterFile = getUploadedFile(req, "poster");
 
-    if (
-      (incomingTitle || incomingDate) &&
-      (nextTitle !== event.title || nextDate.getTime() !== event.date.getTime())
-    ) {
-      const existing = await Event.findOne({
-        _id: { $ne: event._id },
-        organizerId: event.organizerId,
-        title: nextTitle,
-        date: nextDate,
-      }).lean();
-
-      if (existing) {
-        return next(
-          new AppError(
-            "Another event with the same title and date already exists for this organizer",
-            400,
-          ),
-        );
+      if (posterFile) {
+        uploadedPoster = await uploadImageBuffer({
+          buffer: posterFile.buffer,
+          folder: MEDIA_FOLDERS.eventPoster,
+          filename: event.title,
+        });
       }
+
+      const data = updateEventSchema.parse({
+        ...(req.body as Record<string, unknown>),
+        ...(uploadedPoster ? { posterUrl: uploadedPoster.url } : {}),
+      });
+
+      if (!Object.keys(data).length) {
+        return next(new AppError("No updates provided", 400));
+      }
+
+      const incomingTitle =
+        typeof data.title === "string" ? data.title.trim() : undefined;
+      const incomingDate =
+        typeof data.date === "string" ? new Date(data.date) : undefined;
+
+      const nextTitle = incomingTitle ?? event.title;
+      const nextDate = incomingDate ?? event.date;
+
+      if (
+        (incomingTitle || incomingDate) &&
+        (nextTitle !== event.title ||
+          nextDate.getTime() !== event.date.getTime())
+      ) {
+        const existing = await Event.findOne({
+          _id: { $ne: event._id },
+          organizerId: event.organizerId,
+          title: nextTitle,
+          date: nextDate,
+        }).lean();
+
+        if (existing) {
+          return next(
+            new AppError(
+              "Another event with the same title and date already exists for this organizer",
+              400,
+            ),
+          );
+        }
+      }
+
+      const previousPosterPublicId = event.posterPublicId;
+
+      if (incomingTitle) event.title = incomingTitle;
+      if (typeof data.description === "string")
+        event.description = data.description;
+      if (incomingDate) event.date = incomingDate;
+      if (typeof data.location === "string") event.location = data.location;
+      if (typeof data.posterUrl === "string") {
+        event.posterUrl = data.posterUrl;
+        if (uploadedPoster) {
+          event.posterPublicId = uploadedPoster.publicId;
+        }
+      }
+      if (typeof data.dressCode === "string") event.dressCode = data.dressCode;
+      if (typeof data.policies === "string") event.policies = data.policies;
+
+      await event.save();
+
+      if (uploadedPoster) {
+        await deleteCloudinaryAsset(previousPosterPublicId);
+      }
+
+      res.status(200).json({
+        status: "success",
+        data: {
+          event,
+        },
+      });
+    } catch (error) {
+      await deleteCloudinaryAsset(uploadedPoster?.publicId);
+      throw error;
     }
-
-    if (incomingTitle) event.title = incomingTitle;
-    if (typeof data.description === "string")
-      event.description = data.description;
-    if (incomingDate) event.date = incomingDate;
-    if (typeof data.location === "string") event.location = data.location;
-    if (typeof data.posterUrl === "string") event.posterUrl = data.posterUrl;
-    if (typeof data.dressCode === "string") event.dressCode = data.dressCode;
-    if (typeof data.policies === "string") event.policies = data.policies;
-
-    await event.save();
-
-    res.status(200).json({
-      status: "success",
-      data: {
-        event,
-      },
-    });
   },
 );
 

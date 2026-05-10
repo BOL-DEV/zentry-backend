@@ -14,6 +14,7 @@ import {
   updateOrganizerStaffSessionLimitSchema,
 } from "../validations/organizer.schema";
 import {
+  bulkUpdateGalleryItemsSchema,
   createGalleryItemSchema,
   galleryItemIdParamSchema,
   updateGalleryItemSchema,
@@ -22,6 +23,13 @@ import {
   adminCreateOrganizerSchema,
   adminUpdateOrganizerSchema,
 } from "../validations/adminOrganizer.schema";
+import {
+  deleteCloudinaryAsset,
+  MEDIA_FOLDERS,
+  uploadImageBuffer,
+} from "../services/cloudinaryService";
+import { getUploadedFile, normalizeBankDetailsBody } from "../utils/mediaHelpers";
+import { bulkUpdateGalleryItemsForOrganizer } from "../services/galleryBulkService";
 
 const parseBooleanQuery = (value: unknown): boolean | undefined => {
   if (typeof value !== "string") return undefined;
@@ -374,9 +382,8 @@ export const getAdminOrganizerById = catchAsync(
 
 export const createAdminOrganizer = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
-    const data = adminCreateOrganizerSchema.parse(req.body);
-
-    const slug = generateSlug(data.name);
+    const body = normalizeBankDetailsBody(req.body as Record<string, unknown>);
+    const slug = generateSlug(String(body.name || ""));
 
     const existingOrganizer = await Organizer.findOne({ slug });
 
@@ -384,49 +391,92 @@ export const createAdminOrganizer = catchAsync(
       return next(new AppError("Organizer with this name already exists", 400));
     }
 
-    const bankDetailsProvided =
-      data.bankDetails && Object.keys(data.bankDetails).length > 0;
+    let uploadedLogo:
+      | {
+          url: string;
+          publicId: string;
+        }
+      | undefined;
+    let uploadedBanner:
+      | {
+          url: string;
+          publicId: string;
+        }
+      | undefined;
 
-    const organizer = await Organizer.create({
-      name: data.name,
-      slug,
-      logoUrl: data.logoUrl,
-      bannerUrl: data.bannerUrl,
-      heroTitle: data.heroTitle,
-      heroSubtitle: data.heroSubtitle,
-      about: data.about,
-      contactEmail: data.contactEmail,
-      contactPhone: data.contactPhone,
-      location: data.location,
-      ...(bankDetailsProvided
-        ? {
-            bankDetails: {
-              bankName: data.bankDetails?.bankName ?? null,
-              bankCode: data.bankDetails?.bankCode ?? null,
-              accountNumber: data.bankDetails?.accountNumber ?? null,
-              accountName: data.bankDetails?.accountName ?? null,
-            },
-          }
-        : {}),
-    });
+    try {
+      const logoFile = getUploadedFile(req, "logo");
+      const bannerFile = getUploadedFile(req, "banner");
 
-    res.status(201).json({
-      status: "success",
-      data: {
-        organizer,
-      },
-    });
+      if (logoFile) {
+        uploadedLogo = await uploadImageBuffer({
+          buffer: logoFile.buffer,
+          folder: MEDIA_FOLDERS.organizerLogo,
+          filename: slug,
+        });
+      }
+
+      if (bannerFile) {
+        uploadedBanner = await uploadImageBuffer({
+          buffer: bannerFile.buffer,
+          folder: MEDIA_FOLDERS.organizerBanner,
+          filename: `${slug}-banner`,
+        });
+      }
+
+      const data = adminCreateOrganizerSchema.parse({
+        ...body,
+        ...(uploadedLogo ? { logoUrl: uploadedLogo.url } : {}),
+        ...(uploadedBanner ? { bannerUrl: uploadedBanner.url } : {}),
+      });
+
+      const bankDetailsProvided =
+        data.bankDetails && Object.keys(data.bankDetails).length > 0;
+
+      const organizer = await Organizer.create({
+        name: data.name,
+        slug,
+        logoUrl: data.logoUrl,
+        logoPublicId: uploadedLogo?.publicId ?? null,
+        bannerUrl: data.bannerUrl,
+        bannerPublicId: uploadedBanner?.publicId ?? null,
+        heroTitle: data.heroTitle,
+        heroSubtitle: data.heroSubtitle,
+        about: data.about,
+        contactEmail: data.contactEmail,
+        contactPhone: data.contactPhone,
+        location: data.location,
+        ...(bankDetailsProvided
+          ? {
+              bankDetails: {
+                bankName: data.bankDetails?.bankName ?? null,
+                bankCode: data.bankDetails?.bankCode ?? null,
+                accountNumber: data.bankDetails?.accountNumber ?? null,
+                accountName: data.bankDetails?.accountName ?? null,
+              },
+            }
+          : {}),
+      });
+
+      res.status(201).json({
+        status: "success",
+        data: {
+          organizer,
+        },
+      });
+    } catch (error) {
+      await Promise.all([
+        deleteCloudinaryAsset(uploadedLogo?.publicId),
+        deleteCloudinaryAsset(uploadedBanner?.publicId),
+      ]);
+      throw error;
+    }
   },
 );
 
 export const updateAdminOrganizer = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
     const { organizerId } = organizerIdParamSchema.parse(req.params);
-    const data = adminUpdateOrganizerSchema.parse(req.body);
-
-    if (!Object.keys(data).length) {
-      return next(new AppError("No updates provided", 400));
-    }
 
     const organizer = await Organizer.findById(organizerId);
 
@@ -434,64 +484,134 @@ export const updateAdminOrganizer = catchAsync(
       return next(new AppError("Organizer not found", 404));
     }
 
-    if (typeof data.name === "string") organizer.name = data.name;
-    if (typeof data.logoUrl === "string") organizer.logoUrl = data.logoUrl;
-    if (typeof data.bannerUrl === "string")
-      organizer.bannerUrl = data.bannerUrl;
-    if (typeof data.heroTitle === "string")
-      organizer.heroTitle = data.heroTitle;
-    if (typeof data.heroSubtitle === "string")
-      organizer.heroSubtitle = data.heroSubtitle;
-    if (typeof data.about === "string") organizer.about = data.about;
-    if (typeof data.contactEmail === "string")
-      organizer.contactEmail = data.contactEmail;
-    if (typeof data.contactPhone === "string")
-      organizer.contactPhone = data.contactPhone;
-    if (typeof data.location === "string") organizer.location = data.location;
+    let uploadedLogo:
+      | {
+          url: string;
+          publicId: string;
+        }
+      | undefined;
+    let uploadedBanner:
+      | {
+          url: string;
+          publicId: string;
+        }
+      | undefined;
 
-    if (data.bankDetails) {
-      const incoming = data.bankDetails;
-      const keys = Object.keys(incoming);
+    try {
+      const logoFile = getUploadedFile(req, "logo");
+      const bannerFile = getUploadedFile(req, "banner");
 
-      const payoutFieldsProvided =
-        typeof incoming.bankCode === "string" ||
-        typeof incoming.accountNumber === "string" ||
-        typeof incoming.accountName === "string";
-
-      if (keys.length === 0) {
-        organizer.bankDetails = {
-          bankName: null,
-          bankCode: null,
-          accountNumber: null,
-          accountName: null,
-        };
-      } else if (payoutFieldsProvided) {
-        organizer.bankDetails = {
-          bankName: incoming.bankName ?? null,
-          bankCode: incoming.bankCode ?? null,
-          accountNumber: incoming.accountNumber ?? null,
-          accountName: incoming.accountName ?? null,
-        };
-      } else {
-        const current = (organizer as any).bankDetails || {};
-
-        organizer.bankDetails = {
-          bankName: incoming.bankName ?? null,
-          bankCode: current.bankCode ?? null,
-          accountNumber: current.accountNumber ?? null,
-          accountName: current.accountName ?? null,
-        };
+      if (logoFile) {
+        uploadedLogo = await uploadImageBuffer({
+          buffer: logoFile.buffer,
+          folder: MEDIA_FOLDERS.organizerLogo,
+          filename: organizer.slug,
+        });
       }
+
+      if (bannerFile) {
+        uploadedBanner = await uploadImageBuffer({
+          buffer: bannerFile.buffer,
+          folder: MEDIA_FOLDERS.organizerBanner,
+          filename: `${organizer.slug}-banner`,
+        });
+      }
+
+      const data = adminUpdateOrganizerSchema.parse({
+        ...normalizeBankDetailsBody(req.body as Record<string, unknown>),
+        ...(uploadedLogo ? { logoUrl: uploadedLogo.url } : {}),
+        ...(uploadedBanner ? { bannerUrl: uploadedBanner.url } : {}),
+      });
+
+      if (!Object.keys(data).length) {
+        return next(new AppError("No updates provided", 400));
+      }
+
+      const previousLogoPublicId = organizer.logoPublicId;
+      const previousBannerPublicId = organizer.bannerPublicId;
+
+      if (typeof data.name === "string") organizer.name = data.name;
+      if (typeof data.logoUrl === "string") {
+        organizer.logoUrl = data.logoUrl;
+        if (uploadedLogo) {
+          organizer.logoPublicId = uploadedLogo.publicId;
+        }
+      }
+      if (typeof data.bannerUrl === "string") {
+        organizer.bannerUrl = data.bannerUrl;
+        if (uploadedBanner) {
+          organizer.bannerPublicId = uploadedBanner.publicId;
+        }
+      }
+      if (typeof data.heroTitle === "string")
+        organizer.heroTitle = data.heroTitle;
+      if (typeof data.heroSubtitle === "string")
+        organizer.heroSubtitle = data.heroSubtitle;
+      if (typeof data.about === "string") organizer.about = data.about;
+      if (typeof data.contactEmail === "string")
+        organizer.contactEmail = data.contactEmail;
+      if (typeof data.contactPhone === "string")
+        organizer.contactPhone = data.contactPhone;
+      if (typeof data.location === "string") organizer.location = data.location;
+
+      if (data.bankDetails) {
+        const incoming = data.bankDetails;
+        const keys = Object.keys(incoming);
+
+        const payoutFieldsProvided =
+          typeof incoming.bankCode === "string" ||
+          typeof incoming.accountNumber === "string" ||
+          typeof incoming.accountName === "string";
+
+        if (keys.length === 0) {
+          organizer.bankDetails = {
+            bankName: null,
+            bankCode: null,
+            accountNumber: null,
+            accountName: null,
+          };
+        } else if (payoutFieldsProvided) {
+          organizer.bankDetails = {
+            bankName: incoming.bankName ?? null,
+            bankCode: incoming.bankCode ?? null,
+            accountNumber: incoming.accountNumber ?? null,
+            accountName: incoming.accountName ?? null,
+          };
+        } else {
+          const current = (organizer as any).bankDetails || {};
+
+          organizer.bankDetails = {
+            bankName: incoming.bankName ?? null,
+            bankCode: current.bankCode ?? null,
+            accountNumber: current.accountNumber ?? null,
+            accountName: current.accountName ?? null,
+          };
+        }
+      }
+
+      await organizer.save();
+
+      if (uploadedLogo) {
+        await deleteCloudinaryAsset(previousLogoPublicId);
+      }
+
+      if (uploadedBanner) {
+        await deleteCloudinaryAsset(previousBannerPublicId);
+      }
+
+      res.status(200).json({
+        status: "success",
+        data: {
+          organizer,
+        },
+      });
+    } catch (error) {
+      await Promise.all([
+        deleteCloudinaryAsset(uploadedLogo?.publicId),
+        deleteCloudinaryAsset(uploadedBanner?.publicId),
+      ]);
+      throw error;
     }
-
-    await organizer.save();
-
-    res.status(200).json({
-      status: "success",
-      data: {
-        organizer,
-      },
-    });
   },
 );
 
@@ -598,11 +718,6 @@ export const updateAdminGalleryItem = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
     const { organizerId } = organizerIdParamSchema.parse(req.params);
     const { galleryItemId } = galleryItemIdParamSchema.parse(req.params);
-    const data = updateGalleryItemSchema.parse(req.body);
-
-    if (!Object.keys(data).length) {
-      return next(new AppError("No updates provided", 400));
-    }
 
     const galleryItem = await Gallery.findOne({
       _id: galleryItemId,
@@ -613,38 +728,83 @@ export const updateAdminGalleryItem = catchAsync(
       return next(new AppError("Gallery item not found", 404));
     }
 
-    if (typeof data.imageUrl === "string") {
-      const existing = await Gallery.findOne({
-        _id: { $ne: galleryItem._id },
-        organizerId,
-        imageUrl: data.imageUrl,
-      }).lean();
+    let uploadedImage:
+      | {
+          url: string;
+          publicId: string;
+        }
+      | undefined;
 
-      if (existing) {
-        return next(
-          new AppError(
-            "This gallery image already exists for this organizer",
-            400,
-          ),
-        );
+    try {
+      const imageFile = getUploadedFile(req, "image");
+
+      if (imageFile) {
+        uploadedImage = await uploadImageBuffer({
+          buffer: imageFile.buffer,
+          folder: MEDIA_FOLDERS.gallery,
+          filename: String((req.body as Record<string, unknown>).caption || "gallery"),
+        });
       }
 
-      galleryItem.imageUrl = data.imageUrl;
+      const data = updateGalleryItemSchema.parse({
+        ...(req.body as Record<string, unknown>),
+        ...(uploadedImage ? { imageUrl: uploadedImage.url } : {}),
+      });
+
+      if (!Object.keys(data).length) {
+        return next(new AppError("No updates provided", 400));
+      }
+
+      if (typeof data.imageUrl === "string") {
+        const existing = await Gallery.findOne({
+          _id: { $ne: galleryItem._id },
+          organizerId,
+          imageUrl: data.imageUrl,
+        }).lean();
+
+        if (existing) {
+          return next(
+            new AppError(
+              "This gallery image already exists for this organizer",
+              400,
+            ),
+          );
+        }
+
+        const previousImagePublicId = galleryItem.imagePublicId;
+        galleryItem.imageUrl = data.imageUrl;
+        if (uploadedImage) {
+          galleryItem.imagePublicId = uploadedImage.publicId;
+        }
+
+        if (typeof data.caption === "string") galleryItem.caption = data.caption;
+        if (typeof data.altText === "string") galleryItem.altText = data.altText;
+        if (typeof data.displayOrder === "number")
+          galleryItem.displayOrder = data.displayOrder;
+
+        await galleryItem.save();
+        if (uploadedImage) {
+          await deleteCloudinaryAsset(previousImagePublicId);
+        }
+      } else {
+        if (typeof data.caption === "string") galleryItem.caption = data.caption;
+        if (typeof data.altText === "string") galleryItem.altText = data.altText;
+        if (typeof data.displayOrder === "number")
+          galleryItem.displayOrder = data.displayOrder;
+
+        await galleryItem.save();
+      }
+
+      res.status(200).json({
+        status: "success",
+        data: {
+          galleryItem,
+        },
+      });
+    } catch (error) {
+      await deleteCloudinaryAsset(uploadedImage?.publicId);
+      throw error;
     }
-
-    if (typeof data.caption === "string") galleryItem.caption = data.caption;
-    if (typeof data.altText === "string") galleryItem.altText = data.altText;
-    if (typeof data.displayOrder === "number")
-      galleryItem.displayOrder = data.displayOrder;
-
-    await galleryItem.save();
-
-    res.status(200).json({
-      status: "success",
-      data: {
-        galleryItem,
-      },
-    });
   },
 );
 
@@ -682,7 +842,6 @@ export const getAdminOrganizerGalleryItems = catchAsync(
 export const createAdminGalleryItem = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
     const { organizerId } = organizerIdParamSchema.parse(req.params);
-    const data = createGalleryItemSchema.parse(req.body);
 
     const organizerExists = await Organizer.exists({ _id: organizerId });
 
@@ -690,32 +849,87 @@ export const createAdminGalleryItem = catchAsync(
       return next(new AppError("Organizer not found", 404));
     }
 
-    const existingGalleryItem = await Gallery.findOne({
-      organizerId,
-      imageUrl: data.imageUrl,
-    }).lean();
+    let uploadedImage:
+      | {
+          url: string;
+          publicId: string;
+        }
+      | undefined;
 
-    if (existingGalleryItem) {
-      return next(
-        new AppError(
-          "This gallery image already exists for this organizer",
-          400,
-        ),
-      );
+    try {
+      const imageFile = getUploadedFile(req, "image");
+
+      if (imageFile) {
+        uploadedImage = await uploadImageBuffer({
+          buffer: imageFile.buffer,
+          folder: MEDIA_FOLDERS.gallery,
+          filename: String((req.body as Record<string, unknown>).caption || "gallery"),
+        });
+      }
+
+      const data = createGalleryItemSchema.parse({
+        ...(req.body as Record<string, unknown>),
+        ...(uploadedImage ? { imageUrl: uploadedImage.url } : {}),
+      });
+
+      const existingGalleryItem = await Gallery.findOne({
+        organizerId,
+        imageUrl: data.imageUrl,
+      }).lean();
+
+      if (existingGalleryItem) {
+        return next(
+          new AppError(
+            "This gallery image already exists for this organizer",
+            400,
+          ),
+        );
+      }
+
+      const galleryItem = await Gallery.create({
+        organizerId,
+        imageUrl: data.imageUrl,
+        imagePublicId: uploadedImage?.publicId ?? null,
+        caption: data.caption || "",
+        altText: data.altText || "",
+        displayOrder: data.displayOrder || 0,
+      });
+
+      res.status(201).json({
+        status: "success",
+        data: {
+          galleryItem,
+        },
+      });
+    } catch (error) {
+      await deleteCloudinaryAsset(uploadedImage?.publicId);
+      throw error;
+    }
+  },
+);
+
+export const bulkUpdateAdminGalleryItems = catchAsync(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const { organizerId } = organizerIdParamSchema.parse(req.params);
+
+    const organizerExists = await Organizer.exists({ _id: organizerId });
+
+    if (!organizerExists) {
+      return next(new AppError("Organizer not found", 404));
     }
 
-    const galleryItem = await Gallery.create({
+    const { items } = bulkUpdateGalleryItemsSchema.parse(req.body);
+
+    const galleryItems = await bulkUpdateGalleryItemsForOrganizer({
       organizerId,
-      imageUrl: data.imageUrl,
-      caption: data.caption || "",
-      altText: data.altText || "",
-      displayOrder: data.displayOrder || 0,
+      items,
     });
 
-    res.status(201).json({
+    res.status(200).json({
       status: "success",
+      results: galleryItems.length,
       data: {
-        galleryItem,
+        galleryItems,
       },
     });
   },
