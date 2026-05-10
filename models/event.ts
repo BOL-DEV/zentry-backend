@@ -7,6 +7,7 @@ export interface IEvent extends Document {
   date: Date;
   location: string;
   posterUrl: string;
+  posterPublicId?: string | null;
   dressCode: string;
   policies: string;
   createdAt: Date;
@@ -44,6 +45,11 @@ const eventSchema = new Schema<IEvent>(
       type: String,
       required: [true, "Event poster URL is required"],
       trim: true,
+    },
+    posterPublicId: {
+      type: String,
+      trim: true,
+      default: null,
     },
     dressCode: {
       type: String,

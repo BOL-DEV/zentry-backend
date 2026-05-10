@@ -6,14 +6,20 @@ import { AppError } from "../utils/appError";
 import { catchAsync } from "../utils/catchAsync";
 import { generateSlug } from "../utils/slugify";
 import { createOrganizerRequestSchema } from "../validations/organizerRequest.schema";
+import {
+  deleteCloudinaryAsset,
+  MEDIA_FOLDERS,
+  uploadImageBuffer,
+} from "../services/cloudinaryService";
+import { getUploadedFile, normalizeBankDetailsBody } from "../utils/mediaHelpers";
 
 export const submitOrganizerRequest = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
-    const payload = createOrganizerRequestSchema.parse(req.body);
+    const body = normalizeBankDetailsBody(req.body as Record<string, unknown>);
 
-    const email = payload.email;
-    const name = payload.name;
-    const preferredSlug = payload.preferredSlug;
+    const email = String(body.email || "").trim().toLowerCase();
+    const name = String(body.name || "").trim();
+    const preferredSlug = String(body.preferredSlug || "").trim();
 
     const requestedSlug = generateSlug(preferredSlug);
     if (!requestedSlug) {
@@ -71,36 +77,85 @@ export const submitOrganizerRequest = catchAsync(
       );
     }
 
-    const requestDoc = new OrganizerRequest({
-      name: payload.name,
-      email: payload.email,
-      logoUrl: payload.logoUrl,
-      bannerUrl: payload.bannerUrl,
-      heroTitle: payload.heroTitle,
-      heroSubtitle: payload.heroSubtitle,
-      phone: payload.phone,
-      about: payload.about,
-      location: payload.location,
-      ...(payload.bankDetails ? { bankDetails: payload.bankDetails } : {}),
-      preferredSlug: payload.preferredSlug,
-      status: "pending",
-    });
+    let uploadedLogo:
+      | {
+          url: string;
+          publicId: string;
+        }
+      | undefined;
+    let uploadedBanner:
+      | {
+          url: string;
+          publicId: string;
+        }
+      | undefined;
 
-    await requestDoc.save();
+    try {
+      const logoFile = getUploadedFile(req, "logo");
+      const bannerFile = getUploadedFile(req, "banner");
 
-    res.status(201).json({
-      status: "success",
-      data: {
-        request: {
-          id: requestDoc._id,
-          name: requestDoc.name,
-          email: requestDoc.email,
-          preferredSlug: requestDoc.preferredSlug,
-          status: requestDoc.status,
-          createdAt: requestDoc.createdAt,
+      if (logoFile) {
+        uploadedLogo = await uploadImageBuffer({
+          buffer: logoFile.buffer,
+          folder: MEDIA_FOLDERS.organizerRequestLogo,
+          filename: requestedSlug,
+        });
+      }
+
+      if (bannerFile) {
+        uploadedBanner = await uploadImageBuffer({
+          buffer: bannerFile.buffer,
+          folder: MEDIA_FOLDERS.organizerRequestBanner,
+          filename: `${requestedSlug}-banner`,
+        });
+      }
+
+      const payload = createOrganizerRequestSchema.parse({
+        ...body,
+        ...(uploadedLogo ? { logoUrl: uploadedLogo.url } : {}),
+        ...(uploadedBanner ? { bannerUrl: uploadedBanner.url } : {}),
+      });
+
+      const requestDoc = new OrganizerRequest({
+        name: payload.name,
+        email: payload.email,
+        logoUrl: payload.logoUrl,
+        logoPublicId: uploadedLogo?.publicId ?? null,
+        bannerUrl: payload.bannerUrl,
+        bannerPublicId: uploadedBanner?.publicId ?? null,
+        heroTitle: payload.heroTitle,
+        heroSubtitle: payload.heroSubtitle,
+        phone: payload.phone,
+        about: payload.about,
+        location: payload.location,
+        ...(payload.bankDetails ? { bankDetails: payload.bankDetails } : {}),
+        preferredSlug: payload.preferredSlug,
+        status: "pending",
+      });
+
+      await requestDoc.save();
+
+      res.status(201).json({
+        status: "success",
+        data: {
+          request: {
+            id: requestDoc._id,
+            name: requestDoc.name,
+            email: requestDoc.email,
+            preferredSlug: requestDoc.preferredSlug,
+            status: requestDoc.status,
+            createdAt: requestDoc.createdAt,
+          },
         },
-      },
-    });
+      });
+    } catch (error) {
+      await Promise.all([
+        deleteCloudinaryAsset(uploadedLogo?.publicId),
+        deleteCloudinaryAsset(uploadedBanner?.publicId),
+      ]);
+
+      throw error;
+    }
   },
 );
 

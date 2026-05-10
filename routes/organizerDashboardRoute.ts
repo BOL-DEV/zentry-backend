@@ -9,6 +9,7 @@ import {
   syncOrganizerSettlements,
 } from "../controllers/organizerDashboardController";
 import {
+  bulkUpdateGalleryItems,
   createGalleryItem,
   updateGalleryItem,
 } from "../controllers/galleryController";
@@ -32,6 +33,11 @@ import {
   getOrganizerDashboardProfile,
   updateOrganizerProfile,
 } from "../controllers/organizerController";
+import {
+  uploadEventPoster,
+  uploadGalleryMedia,
+  uploadOrganizerMedia,
+} from "../middlewares/upload";
 
 const router = Router();
 
@@ -45,18 +51,25 @@ router
 router
   .route("/events")
   .get(restrictTo("organizer"), getOrganizerEventStats)
-  .post(restrictTo("organizer"), createEvent);
-router.route("/events/:eventId").patch(restrictTo("organizer"), updateEvent);
+  .post(restrictTo("organizer"), uploadEventPoster, createEvent);
+router
+  .route("/events/:eventId")
+  .patch(restrictTo("organizer"), uploadEventPoster, updateEvent);
 
-router.route("/gallery").post(restrictTo("organizer"), createGalleryItem);
+router
+  .route("/gallery")
+  .post(restrictTo("organizer"), uploadGalleryMedia, createGalleryItem);
+router
+  .route("/gallery/bulk")
+  .patch(restrictTo("organizer"), bulkUpdateGalleryItems);
 router
   .route("/gallery/:galleryItemId")
-  .patch(restrictTo("organizer"), updateGalleryItem);
+  .patch(restrictTo("organizer"), uploadGalleryMedia, updateGalleryItem);
 
 router
   .route("/profile")
   .get(restrictTo("organizer"), getOrganizerDashboardProfile)
-  .patch(restrictTo("organizer"), updateOrganizerProfile);
+  .patch(restrictTo("organizer"), uploadOrganizerMedia, updateOrganizerProfile);
 
 router
   .route("/overall-settlement-summary")

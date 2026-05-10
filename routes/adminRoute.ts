@@ -2,6 +2,7 @@ import { Router } from "express";
 import { getAdminAnalyticsSummary } from "../controllers/adminAnalyticController";
 import { protectAdmin, restrictTo } from "../middlewares/protect";
 import {
+  bulkUpdateAdminGalleryItems,
   createAdminOrganizer,
   createAdminGalleryItem,
   getAdminOrganizerById,
@@ -50,6 +51,15 @@ import {
   runAdminSettlementSyncAsAdmin,
   toggleAdminSettlementBatch,
 } from "../controllers/adminSettlementController";
+import {
+  getAdminPlatformFeeSettings,
+  updateAdminPlatformFeeSettings,
+} from "../controllers/adminPlatformFeeController";
+import {
+  uploadEventPoster,
+  uploadGalleryMedia,
+  uploadOrganizerMedia,
+} from "../middlewares/upload";
 
 const router = Router();
 
@@ -57,23 +67,33 @@ router.use(protectAdmin);
 router.use(restrictTo("admin"));
 
 router.route("/analytics").get(getAdminAnalyticsSummary);
+router
+  .route("/settings/platform-fee")
+  .get(getAdminPlatformFeeSettings)
+  .patch(updateAdminPlatformFeeSettings);
 
 /// ORGANIZER MANAGEMENT
-router.route("/organizers").get(getAdminOrganizers).post(createAdminOrganizer);
+router
+  .route("/organizers")
+  .get(getAdminOrganizers)
+  .post(uploadOrganizerMedia, createAdminOrganizer);
 router
   .route("/organizers/:organizerId")
   .get(getAdminOrganizerById)
-  .patch(updateAdminOrganizer);
+  .patch(uploadOrganizerMedia, updateAdminOrganizer);
 router
   .route("/organizers/:organizerId/events")
-  .post(createAdminEventForOrganizer);
+  .post(uploadEventPoster, createAdminEventForOrganizer);
 router
   .route("/organizers/:organizerId/gallery")
   .get(getAdminOrganizerGalleryItems)
-  .post(createAdminGalleryItem);
+  .post(uploadGalleryMedia, createAdminGalleryItem);
+router
+  .route("/organizers/:organizerId/gallery/bulk")
+  .patch(bulkUpdateAdminGalleryItems);
 router
   .route("/organizers/:organizerId/gallery/:galleryItemId")
-  .patch(updateAdminGalleryItem);
+  .patch(uploadGalleryMedia, updateAdminGalleryItem);
 router
   .route("/organizers/:organizerId/toggle-active")
   .patch(toggleAdminOrganizerActiveState);
@@ -119,7 +139,10 @@ router.route("/orders/:orderId").get(getAdminOrderById);
 
 /// EVENT MANAGEMENT
 router.route("/events").get(getAdminEvents);
-router.route("/events/:eventId").get(getAdminEventById).patch(updateAdminEvent);
+router
+  .route("/events/:eventId")
+  .get(getAdminEventById)
+  .patch(uploadEventPoster, updateAdminEvent);
 router
   .route("/events/:eventId/ticket-types")
   .get(getAdminEventTicketTypes)

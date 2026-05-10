@@ -1,8 +1,10 @@
 import { NextFunction, Request, Response } from "express";
+import multer from "multer";
 import { ZodError } from "zod";
 import { AppError } from "../utils/appError";
 import { IAppError } from "../utils/appError";
 import { error } from "../utils/appError";
+import { MAX_IMAGE_UPLOAD_SIZE_BYTES } from "../services/cloudinaryService";
 
 const handleCastErrorDB = (err: IAppError) => {
   const message = `Invalid ${err.path}: ${err.value}`;
@@ -25,6 +27,15 @@ const handleZodError = (err: ZodError) => {
   const errors = err.issues.map((issue) => issue.message);
   const message = `Validation failed. ${errors.join(". ")}`;
   return new AppError(message, 400);
+};
+
+const handleMulterError = (err: multer.MulterError) => {
+  if (err.code === "LIMIT_FILE_SIZE") {
+    const maxSizeMb = Math.floor(MAX_IMAGE_UPLOAD_SIZE_BYTES / (1024 * 1024));
+    return new AppError(`Image upload must not exceed ${maxSizeMb}MB`, 400);
+  }
+
+  return new AppError(err.message, 400);
 };
 
 const sendErrorDev = (err: any, res: Response) => {
@@ -66,6 +77,8 @@ export const globalErrorHandler = (
     error = handleValidationErrorDB(error);
   } else if (error instanceof ZodError) {
     error = handleZodError(error);
+  } else if (error instanceof multer.MulterError) {
+    error = handleMulterError(error);
   }
 
   error.statusCode = error.statusCode || 500;

@@ -14,20 +14,14 @@ import {
   reserveTicketQuantities,
   syncReservedQuantitiesForEvent,
 } from "../services/orderReservationService";
+import {
+  calculatePlatformFee,
+  getEffectivePlatformFeeSettings,
+} from "../services/platformFeeService";
 import { SquadService } from "../services/squadService";
 
-const PLATFORM_FEE_FLAT_NAIRA = 100;
-const PLATFORM_FEE_THRESHOLD_NAIRA = 3500;
-const PLATFORM_FEE_PERCENT_ABOVE_THRESHOLD = 0.03;
 const SQUAD_TRANSFER_FEE_NAIRA = 25;
 const SQUAD_MODAL_GATEWAY_PERCENT = 0.015; // 1.5%
-
-const calculatePlatformFee = (amount: number) => {
-  if (amount < PLATFORM_FEE_THRESHOLD_NAIRA) {
-    return PLATFORM_FEE_FLAT_NAIRA;
-  }
-  return Number((amount * PLATFORM_FEE_PERCENT_ABOVE_THRESHOLD).toFixed(2));
-};
 
 export const createPurchase = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
@@ -88,10 +82,12 @@ export const createPurchase = catchAsync(
     const paymentReference = generatePaymentReference();
     const accessToken = generateOrderAccessToken();
     const reservationExpiresAt = buildReservationExpiry();
+    const platformFeeSettings = await getEffectivePlatformFeeSettings();
 
-    // --- UPDATED FEE CALCULATION ---
     const platformFeeTotal =
-      paymentGateway === "squad" ? calculatePlatformFee(totalAmount) : 0;
+      paymentGateway === "squad"
+        ? calculatePlatformFee(totalAmount, platformFeeSettings)
+        : 0;
     const squadTransferFee =
       paymentGateway === "squad" ? SQUAD_TRANSFER_FEE_NAIRA : 0;
 

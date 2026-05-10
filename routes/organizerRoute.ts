@@ -15,10 +15,11 @@ import {
 } from "../controllers/eventController";
 import { getEventTicketTypes } from "../controllers/ticketTypeController";
 import { createPurchase } from "../controllers/purchaseController";
+import { uploadOrganizerMedia } from "../middlewares/upload";
 
 const router = Router();
 
-router.route("/").get(getPublicOrganizers).post(createOrganizer);
+router.route("/").get(getPublicOrganizers).post(uploadOrganizerMedia, createOrganizer);
 router.route("/:slug").get(checkOrganizerExist, getOrganizerBySlug);
 
 router.route("/:slug/gallery").get(checkOrganizerExist, getGalleryItems);

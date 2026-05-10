@@ -3,6 +3,7 @@ import { Schema, model, Types } from 'mongoose';
 interface IGallery {
     organizerId: Types.ObjectId;
     imageUrl: string;
+    imagePublicId?: string | null;
     caption?: string;
     altText ?: string;
     displayOrder?: number;
@@ -20,6 +21,11 @@ const gallerySchema = new Schema<IGallery>(
       required: [true, "Image Url is required"],
       trim: true,
       unique: true,
+    },
+    imagePublicId: {
+      type: String,
+      trim: true,
+      default: null,
     },
     caption: {
       type: String,
