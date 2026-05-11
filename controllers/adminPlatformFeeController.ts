@@ -6,7 +6,7 @@ import { AppError } from "../utils/appError";
 import { catchAsync } from "../utils/catchAsync";
 import {
   getDefaultPlatformFeeSettings,
-  getEffectivePlatformFeeSettings,
+  getGlobalPlatformFeeSettings,
 } from "../services/platformFeeService";
 import { updateAdminPlatformFeeSettingsSchema } from "../validations/adminPlatformFee.schema";
 
@@ -18,7 +18,7 @@ export const getAdminPlatformFeeSettings = catchAsync(
           "flatFeeBelowThreshold thresholdAmount percentAboveThreshold createdAt updatedAt",
         )
         .lean(),
-      getEffectivePlatformFeeSettings(),
+      getGlobalPlatformFeeSettings(),
     ]);
 
     res.status(200).json({

@@ -82,7 +82,9 @@ export const createPurchase = catchAsync(
     const paymentReference = generatePaymentReference();
     const accessToken = generateOrderAccessToken();
     const reservationExpiresAt = buildReservationExpiry();
-    const platformFeeSettings = await getEffectivePlatformFeeSettings();
+    const platformFeeSettings = await getEffectivePlatformFeeSettings(
+      event.organizerId,
+    );
 
     const platformFeeTotal =
       paymentGateway === "squad"

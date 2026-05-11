@@ -1,0 +1,15 @@
+info:
+  name: Get Admin Platform Fee Settings
+  type: http
+  seq: 12
+
+http:
+  method: GET
+  url: 127.0.0.1:4000/api/v1/admin/settings/platform-fee
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
