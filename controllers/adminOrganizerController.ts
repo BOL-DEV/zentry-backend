@@ -30,6 +30,10 @@ import {
 } from "../services/cloudinaryService";
 import { getUploadedFile, normalizeBankDetailsBody } from "../utils/mediaHelpers";
 import { bulkUpdateGalleryItemsForOrganizer } from "../services/galleryBulkService";
+import {
+  getDefaultPlatformFeeSettings,
+  getEffectivePlatformFeeSettings,
+} from "../services/platformFeeService";
 
 const parseBooleanQuery = (value: unknown): boolean | undefined => {
   if (typeof value !== "string") return undefined;
@@ -237,7 +241,7 @@ export const getAdminOrganizerById = catchAsync(
 
     const organizer = await Organizer.findById(organizerId)
       .select(
-        "name slug logoUrl bannerUrl heroTitle heroSubtitle about contactEmail contactPhone location bankDetails staffSessionLimit organizerSessionLimit isActive createdAt updatedAt",
+        "name slug logoUrl bannerUrl heroTitle heroSubtitle about contactEmail contactPhone location bankDetails staffSessionLimit organizerSessionLimit platformFeeOverride isActive createdAt updatedAt",
       )
       .lean();
 
@@ -245,7 +249,7 @@ export const getAdminOrganizerById = catchAsync(
       return next(new AppError("Organizer not found", 404));
     }
 
-    const [eventStats, orderStats, ticketStats, recentEvents] =
+    const [eventStats, orderStats, ticketStats, recentEvents, effectivePlatformFee] =
       await Promise.all([
         Event.countDocuments({ organizerId: organizer._id }),
         Order.aggregate([
@@ -309,6 +313,7 @@ export const getAdminOrganizerById = catchAsync(
           .sort({ date: -1 })
           .limit(10)
           .lean(),
+        getEffectivePlatformFeeSettings(organizer._id),
       ]);
 
     const orderSummary = orderStats[0] || {
@@ -331,6 +336,8 @@ export const getAdminOrganizerById = catchAsync(
         typeof bank.accountNumber === "string" ? bank.accountNumber : "",
       accountName: typeof bank.accountName === "string" ? bank.accountName : "",
     };
+
+    const organizerPlatformFeeOverride = (organizer as any).platformFeeOverride;
 
     res.status(200).json({
       status: "success",
@@ -356,6 +363,27 @@ export const getAdminOrganizerById = catchAsync(
             typeof (organizer as any).organizerSessionLimit === "number"
               ? (organizer as any).organizerSessionLimit
               : 1,
+          platformFee: {
+            override: organizerPlatformFeeOverride
+              ? {
+                  flatFeeBelowThreshold:
+                    organizerPlatformFeeOverride.flatFeeBelowThreshold,
+                  thresholdAmount: organizerPlatformFeeOverride.thresholdAmount,
+                  percentAboveThreshold:
+                    organizerPlatformFeeOverride.percentAboveThreshold,
+                }
+              : null,
+            effective: {
+              flatFeeBelowThreshold:
+                effectivePlatformFee.flatFeeBelowThreshold,
+              thresholdAmount: effectivePlatformFee.thresholdAmount,
+              percentAboveThreshold:
+                effectivePlatformFee.percentAboveThreshold,
+            },
+            defaults: getDefaultPlatformFeeSettings(),
+            isUsingDefault:
+              !effectivePlatformFee.isUsingOrganizerOverride,
+          },
           isActive: organizer.isActive,
           createdAt: organizer.createdAt,
           updatedAt: organizer.updatedAt,
@@ -432,6 +460,9 @@ export const createAdminOrganizer = catchAsync(
 
       const bankDetailsProvided =
         data.bankDetails && Object.keys(data.bankDetails).length > 0;
+      const platformFeeOverrideProvided =
+        data.platformFeeOverride && typeof data.platformFeeOverride === "object";
+      const defaultPlatformFeeSettings = getDefaultPlatformFeeSettings();
 
       const organizer = await Organizer.create({
         name: data.name,
@@ -453,6 +484,21 @@ export const createAdminOrganizer = catchAsync(
                 bankCode: data.bankDetails?.bankCode ?? null,
                 accountNumber: data.bankDetails?.accountNumber ?? null,
                 accountName: data.bankDetails?.accountName ?? null,
+              },
+            }
+          : {}),
+        ...(platformFeeOverrideProvided
+          ? {
+              platformFeeOverride: {
+                flatFeeBelowThreshold:
+                  data.platformFeeOverride?.flatFeeBelowThreshold ??
+                  defaultPlatformFeeSettings.flatFeeBelowThreshold,
+                thresholdAmount:
+                  data.platformFeeOverride?.thresholdAmount ??
+                  defaultPlatformFeeSettings.thresholdAmount,
+                percentAboveThreshold:
+                  data.platformFeeOverride?.percentAboveThreshold ??
+                  defaultPlatformFeeSettings.percentAboveThreshold,
               },
             }
           : {}),
@@ -587,6 +633,32 @@ export const updateAdminOrganizer = catchAsync(
             accountName: current.accountName ?? null,
           };
         }
+      }
+
+      if (data.platformFeeOverride === null) {
+        organizer.set("platformFeeOverride", undefined);
+      } else if (data.platformFeeOverride) {
+        const currentOverride = (organizer as any).platformFeeOverride;
+        const basePlatformFee =
+          currentOverride && typeof currentOverride === "object"
+            ? {
+                flatFeeBelowThreshold: currentOverride.flatFeeBelowThreshold,
+                thresholdAmount: currentOverride.thresholdAmount,
+                percentAboveThreshold: currentOverride.percentAboveThreshold,
+              }
+            : await getEffectivePlatformFeeSettings(organizer._id);
+
+        organizer.set("platformFeeOverride", {
+          flatFeeBelowThreshold:
+            data.platformFeeOverride.flatFeeBelowThreshold ??
+            basePlatformFee.flatFeeBelowThreshold,
+          thresholdAmount:
+            data.platformFeeOverride.thresholdAmount ??
+            basePlatformFee.thresholdAmount,
+          percentAboveThreshold:
+            data.platformFeeOverride.percentAboveThreshold ??
+            basePlatformFee.percentAboveThreshold,
+        });
       }
 
       await organizer.save();

@@ -96,6 +96,20 @@ const organizerSchema = new Schema(
       min: 1,
       max: 20,
     },
+    platformFeeOverride: {
+      flatFeeBelowThreshold: {
+        type: Number,
+        min: 0,
+      },
+      thresholdAmount: {
+        type: Number,
+        min: 0,
+      },
+      percentAboveThreshold: {
+        type: Number,
+        min: 0,
+      },
+    },
     isActive: {
       type: Boolean,
       default: true,

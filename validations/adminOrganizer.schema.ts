@@ -1,5 +1,16 @@
 import { z } from "zod";
 
+const moneyField = z.coerce
+  .number()
+  .min(0, "Value cannot be negative")
+  .finite("Value must be a valid number");
+
+const rateField = z.coerce
+  .number()
+  .min(0, "Rate cannot be negative")
+  .max(1, "Rate must be between 0 and 1")
+  .finite("Rate must be a valid number");
+
 const bankDetailsSchema = z
   .object({
     bankName: z.string().trim().min(2, "Bank name is required").optional(),
@@ -53,6 +64,17 @@ const bankDetailsSchema = z
     }
   });
 
+const platformFeeOverrideSchema = z
+  .object({
+    flatFeeBelowThreshold: moneyField.optional(),
+    thresholdAmount: moneyField.optional(),
+    percentAboveThreshold: rateField.optional(),
+  })
+  .strict()
+  .refine((data) => Object.keys(data).length > 0, {
+    message: "platformFeeOverride cannot be empty",
+  });
+
 export const adminCreateOrganizerSchema = z
   .object({
     name: z
@@ -91,6 +113,7 @@ export const adminCreateOrganizerSchema = z
     location: z.string().trim().min(2, "Location is required"),
 
     bankDetails: bankDetailsSchema.optional(),
+    platformFeeOverride: platformFeeOverrideSchema.nullable().optional(),
   })
   .strict();
 
@@ -145,5 +168,6 @@ export const adminUpdateOrganizerSchema = z
     location: z.string().trim().min(2, "Location is required").optional(),
 
     bankDetails: bankDetailsSchema.optional(),
+    platformFeeOverride: platformFeeOverrideSchema.nullable().optional(),
   })
   .strict();
