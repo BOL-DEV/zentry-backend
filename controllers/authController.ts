@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
+import jwt, { type SignOptions } from "jsonwebtoken";
 import DashboardUser from "../models/dasboardUser";
 import Organizer from "../models/organizer";
 import UserSession from "../models/userSession";
@@ -19,15 +19,50 @@ type SignTokenPayload = {
   sessionId: string;
 };
 
-const signToken = (payload: SignTokenPayload) => {
-  return jwt.sign(payload, process.env.JWT_SECRET as string, {
-    expiresIn: "2d",
-  });
+type TokenExpiresIn = number;
+
+const toExpirySeconds = (raw: string, fallbackSeconds: number): number => {
+  const value = raw.trim();
+  if (!value) return fallbackSeconds;
+
+  if (/^\d+$/.test(value)) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallbackSeconds;
+  }
+
+  const match = /^(\d+)\s*([smhd])$/i.exec(value);
+  if (!match) return fallbackSeconds;
+
+  const amount = Number(match[1]);
+  const unit = match[2]?.toLowerCase();
+  const multiplier =
+    unit === "s"
+      ? 1
+      : unit === "m"
+        ? 60
+        : unit === "h"
+          ? 60 * 60
+          : 24 * 60 * 60;
+
+  const seconds = amount * multiplier;
+  return Number.isFinite(seconds) ? seconds : fallbackSeconds;
+};
+
+const signToken = (payload: SignTokenPayload, expiresIn: TokenExpiresIn) => {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw new Error("JWT_SECRET is not set");
+  }
+
+  const options: SignOptions = { expiresIn };
+  return jwt.sign(payload, secret, options);
 };
 
 export const login = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
-    const { email, password } = loginSchema.parse(req.body);
+    const { email, password, deviceName, rememberMe } = loginSchema.parse(
+      req.body,
+    );
 
     const user = await DashboardUser.findOne({ email }).select("+password");
 
@@ -116,17 +151,25 @@ export const login = catchAsync(
       role: user.role,
       userAgent: req.get("user-agent") || "",
       ipAddress: req.ip || req.socket.remoteAddress || "",
-      deviceName:
-        typeof req.body.deviceName === "string" ? req.body.deviceName : "",
+      deviceName: typeof deviceName === "string" ? deviceName : "",
       lastSeenAt: new Date(),
     });
 
-    const token = signToken({
-      id: user._id.toString(),
-      role: user.role,
-      organizerId: user.organizerId.toString(),
-      sessionId: session._id.toString(),
-    });
+    const shortExpiryRaw = process.env.JWT_EXPIRES_IN_SHORT ?? "2h";
+    const longExpiryRaw = process.env.JWT_EXPIRES_IN_LONG ?? "7d";
+    const expiresIn = rememberMe
+      ? toExpirySeconds(longExpiryRaw, 7 * 24 * 60 * 60)
+      : toExpirySeconds(shortExpiryRaw, 2 * 60 * 60);
+
+    const token = signToken(
+      {
+        id: user._id.toString(),
+        role: user.role,
+        organizerId: user.organizerId.toString(),
+        sessionId: session._id.toString(),
+      },
+      expiresIn,
+    );
 
     res.status(200).json({
       status: "success",

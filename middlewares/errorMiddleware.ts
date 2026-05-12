@@ -38,6 +38,14 @@ const handleMulterError = (err: multer.MulterError) => {
   return new AppError(err.message, 400);
 };
 
+const handleJWTError = () => {
+  return new AppError("Invalid token. Please log in again.", 401);
+};
+
+const handleJWTExpiredError = () => {
+  return new AppError("Your session has expired. Please log in again.", 401);
+};
+
 const sendErrorDev = (err: any, res: Response) => {
   res.status(err.statusCode || 500).json({
     status: err.status || "error",
@@ -79,6 +87,12 @@ export const globalErrorHandler = (
     error = handleZodError(error);
   } else if (error instanceof multer.MulterError) {
     error = handleMulterError(error);
+  } else if (error.name === "JsonWebTokenError") {
+    error = handleJWTError();
+  } else if (error.name === "TokenExpiredError") {
+    error = handleJWTExpiredError();
+  } else if (error.name === "NotBeforeError") {
+    error = handleJWTError();
   }
 
   error.statusCode = error.statusCode || 500;

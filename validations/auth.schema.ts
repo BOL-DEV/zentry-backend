@@ -5,6 +5,8 @@ export const loginSchema = z.object({
   password: z
     .string()
     .min(6, { message: "Password must be at least 6 characters long" }),
+  deviceName: z.string().trim().optional(),
+  rememberMe: z.boolean().optional().default(false),
 });
 
 export const createDashboardUserSchema = z.object({
