@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import jwt from "jsonwebtoken";
+import jwt, { type SignOptions } from "jsonwebtoken";
 import Admin from "../models/admin";
 import AdminSession from "../models/adminSession";
 import { adminLoginSchema } from "../validations/adminAuth.schema";
@@ -11,15 +11,53 @@ type AdminTokenPayload = {
   sessionId: string;
 };
 
-const signAdminToken = (payload: AdminTokenPayload) => {
-  return jwt.sign(payload, process.env.ADMIN_JWT_SECRET as string, {
-    expiresIn: "1d",
-  });
+type AdminTokenExpiresIn = number;
+
+const toExpirySeconds = (raw: string, fallbackSeconds: number): number => {
+  const value = raw.trim();
+  if (!value) return fallbackSeconds;
+
+  if (/^\d+$/.test(value)) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallbackSeconds;
+  }
+
+  const match = /^(\d+)\s*([smhd])$/i.exec(value);
+  if (!match) return fallbackSeconds;
+
+  const amount = Number(match[1]);
+  const unit = match[2]?.toLowerCase();
+  const multiplier =
+    unit === "s"
+      ? 1
+      : unit === "m"
+        ? 60
+        : unit === "h"
+          ? 60 * 60
+          : 24 * 60 * 60;
+
+  const seconds = amount * multiplier;
+  return Number.isFinite(seconds) ? seconds : fallbackSeconds;
+};
+
+const signAdminToken = (
+  payload: AdminTokenPayload,
+  expiresIn: AdminTokenExpiresIn,
+) => {
+  const secret = process.env.ADMIN_JWT_SECRET;
+  if (!secret) {
+    throw new Error("ADMIN_JWT_SECRET is not set");
+  }
+
+  const options: SignOptions = { expiresIn };
+  return jwt.sign(payload, secret, options);
 };
 
 export const adminLogin = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
-    const { email, password, deviceName } = adminLoginSchema.parse(req.body);
+    const { email, password, deviceName, rememberMe } = adminLoginSchema.parse(
+      req.body,
+    );
 
     const admin = await Admin.findOne({ email }).select("+password");
 
@@ -46,10 +84,19 @@ export const adminLogin = catchAsync(
       lastSeenAt: new Date(),
     });
 
-    const token = signAdminToken({
-      id: admin._id.toString(),
-      sessionId: session._id.toString(),
-    });
+    const shortExpiryRaw = process.env.ADMIN_JWT_EXPIRES_IN_SHORT ?? "2h";
+    const longExpiryRaw = process.env.ADMIN_JWT_EXPIRES_IN_LONG ?? "7d";
+    const expiresIn = rememberMe
+      ? toExpirySeconds(longExpiryRaw, 7 * 24 * 60 * 60)
+      : toExpirySeconds(shortExpiryRaw, 2 * 60 * 60);
+
+    const token = signAdminToken(
+      {
+        id: admin._id.toString(),
+        sessionId: session._id.toString(),
+      },
+      expiresIn,
+    );
 
     res.status(200).json({
       status: "success",
