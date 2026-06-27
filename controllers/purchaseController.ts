@@ -118,12 +118,15 @@ export const createPurchase = catchAsync(
         );
       }
 
+      const callbackUrl = new URL(process.env.SQUAD_CHECKOUT_REDIRECT_URL);
+      callbackUrl.searchParams.set("paymentReference", paymentReference);
+
       const squadPayment = await SquadService.initiatePayment({
         amount: Math.round(totalAmount * 100), // Convert to Kobo
         email: buyerEmail,
         transaction_ref: paymentReference,
         customer_name: buyerName,
-        callback_url: process.env.SQUAD_CHECKOUT_REDIRECT_URL,
+        callback_url: callbackUrl.toString(),
       });
 
       checkoutUrl = squadPayment.checkout_url;
