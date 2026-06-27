@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import bcrypt from "bcryptjs";
 import { query, type PostgresSession } from "./pg";
 
 const registry = new Map<string, any>();
@@ -71,6 +72,9 @@ const compareValues = (left: any, right: any) => {
     return left - right;
   return String(left).localeCompare(String(right));
 };
+
+const looksLikeBcryptHash = (value: unknown) =>
+  typeof value === "string" && /^\$2[aby]?\$\d{2}\$[./A-Za-z0-9]{53}$/.test(value);
 
 const matchesFilterValue = (candidate: any, filterValue: any) => {
   if (Array.isArray(filterValue)) {
@@ -315,9 +319,7 @@ class PgModel {
       selectParts.push(`${column} AS "${field}"`);
     }
 
-    if (!selectedFields || set.has("_id")) {
-      selectParts.unshift(`id AS "_id"`);
-    }
+    selectParts.unshift(`id AS "_id"`);
 
     return selectParts.join(", ");
   }
@@ -456,12 +458,22 @@ class PgModel {
     return (await this.countDocuments(filter)) > 0;
   }
 
-  _toInsertRow(data: any) {
+  async _prepareFieldValue(field: string, value: any) {
+    if (field === "password" && typeof value === "string" && !looksLikeBcryptHash(value)) {
+      return bcrypt.hash(value, 10);
+    }
+
+    return value;
+  }
+
+  async _toInsertRow(data: any) {
     const row: any = {};
     for (const [field, column] of Object.entries(
       this.meta.fields,
     ) as Array<[string, string]>) {
-      if (data[field] !== undefined) row[column] = data[field];
+      if (data[field] !== undefined) {
+        row[column] = await this._prepareFieldValue(field, data[field]);
+      }
     }
     row.id = normalizeId(data._id || data.id || randomId());
     row.created_at = data.createdAt || new Date().toISOString();
@@ -470,7 +482,7 @@ class PgModel {
   }
 
   async create(data: any, session?: PostgresSession) {
-    const row = this._toInsertRow(data);
+    const row = await this._toInsertRow(data);
     const columns = Object.keys(row);
     const values = columns.map((column) => row[column]);
     const placeholders = columns.map((_, index) => `$${index + 1}`);
@@ -504,7 +516,9 @@ class PgModel {
       this.meta.fields,
     ) as Array<[string, string]>) {
       if (field === "_id") continue;
-      if (document[field] !== undefined) row[column] = document[field];
+      if (document[field] !== undefined) {
+        row[column] = await this._prepareFieldValue(field, document[field]);
+      }
     }
     row.updated_at = new Date().toISOString();
 

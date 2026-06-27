@@ -35,6 +35,20 @@ export const normalizeBankDetailsBody = <T extends Record<string, unknown>>(
   };
 };
 
+export const normalizeJsonBodyField = <T extends Record<string, unknown>>(
+  body: T,
+  fieldName: string,
+) => {
+  if (!Object.prototype.hasOwnProperty.call(body, fieldName)) {
+    return body;
+  }
+
+  return {
+    ...body,
+    [fieldName]: parseJsonField(body[fieldName], fieldName),
+  };
+};
+
 export const getUploadedFile = (req: Request, fieldName: string) => {
   const files = req.files as Record<string, Express.Multer.File[]> | undefined;
 

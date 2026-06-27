@@ -27,7 +27,11 @@ import {
   MEDIA_FOLDERS,
   uploadImageBuffer,
 } from "../services/cloudinaryService";
-import { getUploadedFile, normalizeBankDetailsBody } from "../utils/mediaHelpers";
+import {
+  getUploadedFile,
+  normalizeBankDetailsBody,
+  normalizeJsonBodyField,
+} from "../utils/mediaHelpers";
 import { bulkUpdateGalleryItemsForOrganizer } from "../services/galleryBulkService";
 import {
   getDefaultPlatformFeeSettings,
@@ -410,10 +414,29 @@ export const getAdminOrganizerById = catchAsync(
 
 export const createAdminOrganizer = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
-    const body = normalizeBankDetailsBody(req.body as Record<string, unknown>);
+    const body = normalizeJsonBodyField(
+      normalizeBankDetailsBody(req.body as Record<string, unknown>),
+      "platformFeeOverride",
+    );
     const slug = generateSlug(String(body.name || ""));
 
-    const existingOrganizer = await Organizer.findOne({ slug });
+    const existingOrganizer = await Organizer.findOne({
+      $or: [
+        { slug },
+        {
+          name: {
+            $regex: `^${String(body.name || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
+            $options: "i",
+          },
+        },
+        {
+          contactEmail:
+            typeof body.contactEmail === "string"
+              ? body.contactEmail.toLowerCase()
+              : body.contactEmail,
+        },
+      ],
+    });
 
     if (existingOrganizer) {
       return next(new AppError("Organizer with this name already exists", 400));
@@ -564,7 +587,10 @@ export const updateAdminOrganizer = catchAsync(
       }
 
       const data = adminUpdateOrganizerSchema.parse({
-        ...normalizeBankDetailsBody(req.body as Record<string, unknown>),
+        ...normalizeJsonBodyField(
+          normalizeBankDetailsBody(req.body as Record<string, unknown>),
+          "platformFeeOverride",
+        ),
         ...(uploadedLogo ? { logoUrl: uploadedLogo.url } : {}),
         ...(uploadedBanner ? { bannerUrl: uploadedBanner.url } : {}),
       });
