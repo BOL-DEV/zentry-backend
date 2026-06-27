@@ -278,7 +278,7 @@ const fulfillPaidOrder = async ({
 
   order.reservationReleasedAt = new Date();
 
-  await order.save({ session });
+  await order.save(session);
 
   return {
     alreadyProcessed: false,

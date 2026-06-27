@@ -51,7 +51,7 @@ const toExpirySeconds = (raw: string, fallbackSeconds: number): number => {
 const signToken = (payload: SignTokenPayload, expiresIn: TokenExpiresIn) => {
   const secret = process.env.JWT_SECRET;
   if (!secret) {
-    throw new Error("JWT_SECRET is not set");
+    throw new AppError("JWT_SECRET is not set", 500);
   }
 
   const options: SignOptions = { expiresIn };
@@ -74,6 +74,19 @@ export const login = catchAsync(
       return next(new AppError("User account is disabled", 403));
     }
 
+    const userId = String((user as any)._id ?? (user as any).id ?? "").trim();
+    const organizerId = String(
+      (user as any).organizerId ?? (user as any).organizer_id ?? "",
+    ).trim();
+
+    if (!userId) {
+      return next(new AppError("User record is missing an id", 500));
+    }
+
+    if (!organizerId) {
+      return next(new AppError("User record is missing an organizer id", 500));
+    }
+
     const organizer = await Organizer.findById(user.organizerId)
       .select("slug staffSessionLimit organizerSessionLimit")
       .lean();
@@ -90,12 +103,12 @@ export const login = catchAsync(
 
       if (organizerSessionLimit <= 1) {
         await UserSession.updateMany(
-          { userId: user._id, isActive: true },
+          { userId, isActive: true },
           { isActive: false },
         );
       } else {
         const activeSessionsCount = await UserSession.countDocuments({
-          userId: user._id,
+          userId,
           isActive: true,
         });
 
@@ -105,7 +118,7 @@ export const login = catchAsync(
 
         if (numberToRevoke > 0) {
           const sessionsToRevoke = await UserSession.find({
-            userId: user._id,
+            userId,
             isActive: true,
           })
             .select("_id")
@@ -131,7 +144,7 @@ export const login = catchAsync(
           : 3;
 
       const activeSessionsCount = await UserSession.countDocuments({
-        userId: user._id,
+        userId,
         isActive: true,
       });
 
@@ -146,8 +159,8 @@ export const login = catchAsync(
     }
 
     const session = await UserSession.create({
-      userId: user._id,
-      organizerId: user.organizerId,
+      userId,
+      organizerId,
       role: user.role,
       userAgent: req.get("user-agent") || "",
       ipAddress: req.ip || req.socket.remoteAddress || "",
@@ -163,9 +176,9 @@ export const login = catchAsync(
 
     const token = signToken(
       {
-        id: user._id.toString(),
+        id: userId,
         role: user.role,
-        organizerId: user.organizerId.toString(),
+        organizerId,
         sessionId: session._id.toString(),
       },
       expiresIn,
@@ -176,11 +189,11 @@ export const login = catchAsync(
       token,
       data: {
         user: {
-          id: user._id,
+          id: userId,
           fullName: user.fullName,
           email: user.email,
           role: user.role,
-          organizerId: user.organizerId,
+          organizerId,
           organizerSlug: organizer.slug,
         },
         session: {

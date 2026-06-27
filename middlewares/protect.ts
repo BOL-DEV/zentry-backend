@@ -17,6 +17,14 @@ type JwtPayload = {
   exp: number;
 };
 
+const requireJwtSecret = (name: string, value: string | undefined) => {
+  if (!value || !value.trim()) {
+    throw new AppError(`${name} is not set`, 500);
+  }
+
+  return value;
+};
+
 export const protect = catchAsync(
   async (req: Request, _res: Response, next: NextFunction) => {
     let token: string | undefined;
@@ -34,7 +42,7 @@ export const protect = catchAsync(
 
     const decoded = jwt.verify(
       token,
-      process.env.JWT_SECRET as string,
+      requireJwtSecret("JWT_SECRET", process.env.JWT_SECRET),
     ) as JwtPayload;
 
     const user = await DashboardUser.findById(decoded.id);
@@ -61,10 +69,9 @@ export const protect = catchAsync(
       return next(new AppError("Invalid session", 401));
     }
 
-    const organizer = await Organizer.findById({
-      _id: user.organizerId,
-      isActive: true,
-    }).select("_id isActive");
+    const organizer = await Organizer.findById(user.organizerId).select(
+      "_id isActive",
+    );
 
     if (!organizer) {
       return next(new AppError("Associated organizer not found", 404));
@@ -102,7 +109,7 @@ export const restrictTo = (...roles: string[]) => {
     }
 
     return next(new AppError("You do not have permission", 403));
-  };;
+  };
 };
 
 type AdminJwtPayload = {
@@ -129,7 +136,7 @@ export const protectAdmin = catchAsync(
 
     const decoded = jwt.verify(
       token,
-      process.env.ADMIN_JWT_SECRET as string,
+      requireJwtSecret("ADMIN_JWT_SECRET", process.env.ADMIN_JWT_SECRET),
     ) as AdminJwtPayload;
 
     const admin = await Admin.findById(decoded.id);

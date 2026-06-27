@@ -47,7 +47,7 @@ const signAdminToken = (
 ) => {
   const secret = process.env.ADMIN_JWT_SECRET;
   if (!secret) {
-    throw new Error("ADMIN_JWT_SECRET is not set");
+    throw new AppError("ADMIN_JWT_SECRET is not set", 500);
   }
 
   const options: SignOptions = { expiresIn };
@@ -60,7 +60,9 @@ export const adminLogin = catchAsync(
       req.body,
     );
 
-    const admin = await Admin.findOne({ email }).select("+password");
+    const admin = await Admin.findOne({ email }).select(
+      "+password _id fullName email isActive",
+    );
 
     if (!admin || !(await bcrypt.compare(password, admin.password))) {
       return next(new AppError("Incorrect email or password", 401));
@@ -70,14 +72,19 @@ export const adminLogin = catchAsync(
       return next(new AppError("Admin account is disabled", 403));
     }
 
+    const adminId = String((admin as any)._id ?? (admin as any).id ?? "").trim();
+    if (!adminId) {
+      return next(new AppError("Admin record is missing an id", 500));
+    }
+
     // Single-session admin: newest login wins
     await AdminSession.updateMany(
-      { adminId: admin._id, isActive: true },
+      { adminId, isActive: true },
       { isActive: false },
     );
 
     const session = await AdminSession.create({
-      adminId: admin._id,
+      adminId,
       isActive: true,
       userAgent: req.get("user-agent") || "",
       ipAddress: req.ip || req.socket.remoteAddress || "",
@@ -93,7 +100,7 @@ export const adminLogin = catchAsync(
 
     const token = signAdminToken(
       {
-        id: admin._id.toString(),
+        id: adminId,
         sessionId: session._id.toString(),
       },
       expiresIn,

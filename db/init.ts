@@ -17,27 +17,23 @@ const ensureInitialAdmin = async () => {
     return;
   }
 
-  const existingAdmin = await query(
-    "SELECT id FROM admins WHERE email = $1 LIMIT 1",
-    [email],
-  );
-
-  if (existingAdmin.rowCount) {
-    console.log(`Admin seed skipped. Admin already exists for ${email}.`);
-    return;
-  }
-
   const hashedPassword = await bcrypt.hash(password, 10);
 
   await query(
     `
     INSERT INTO admins (id, full_name, email, password, is_active, created_at, updated_at)
     VALUES (gen_random_uuid()::text, $1, $2, $3, $4, NOW(), NOW())
+    ON CONFLICT (email) DO UPDATE
+    SET
+      full_name = EXCLUDED.full_name,
+      password = EXCLUDED.password,
+      is_active = EXCLUDED.is_active,
+      updated_at = NOW()
     `,
     [fullName, email, hashedPassword, isActive],
   );
 
-  console.log(`Initial admin seeded for ${email}.`);
+  console.log(`Initial admin ensured for ${email}.`);
 };
 
 export const ensureDatabaseSchema = async () => {

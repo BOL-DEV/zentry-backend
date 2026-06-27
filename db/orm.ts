@@ -1,31 +1,41 @@
-// @ts-nocheck
 import crypto from "crypto";
-import { query, PostgresSession } from "./pg";
+import { query, type PostgresSession } from "./pg";
 
 const registry = new Map<string, any>();
 
 const randomId = () => crypto.randomBytes(12).toString("hex");
 const normalizeId = (value: any) => {
   if (value == null) return value;
-  if (typeof value === "object" && "_id" in value) return normalizeId(value._id);
+  if (typeof value === "object" && "_id" in value)
+    return normalizeId(value._id);
   return String(value);
 };
 
-const camelize = (value: string) => value.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+const camelize = (value: string) =>
+  value.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
 const toSnake = (value: string) =>
-  value.replace(/([a-z0-9])([A-Z])/g, "$1_$2").replace(/-/g, "_").toLowerCase();
+  value
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+    .replace(/-/g, "_")
+    .toLowerCase();
 
 const isObject = (value: any) =>
-  Boolean(value && typeof value === "object" && !Array.isArray(value) && !(value instanceof Date));
+  Boolean(
+    value &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    !(value instanceof Date),
+  );
 
 const rowToEntity = (row: any) => {
   const entity: any = {};
   for (const [key, value] of Object.entries(row || {})) {
+    if (key === "id" || key === "_id") {
+      entity._id = value;
+      continue;
+    }
+
     entity[camelize(key)] = value;
-  }
-  if (entity.id && !entity._id) {
-    entity._id = entity.id;
-    delete entity.id;
   }
   return entity;
 };
@@ -57,7 +67,8 @@ const compareValues = (left: any, right: any) => {
   if (left instanceof Date || right instanceof Date) {
     return new Date(left).getTime() - new Date(right).getTime();
   }
-  if (typeof left === "number" && typeof right === "number") return left - right;
+  if (typeof left === "number" && typeof right === "number")
+    return left - right;
   return String(left).localeCompare(String(right));
 };
 
@@ -68,12 +79,18 @@ const matchesFilterValue = (candidate: any, filterValue: any) => {
   if (!isObject(filterValue)) {
     return normalizeId(candidate) === normalizeId(filterValue);
   }
-  if (filterValue.$in) return filterValue.$in.map(normalizeId).includes(normalizeId(candidate));
-  if (filterValue.$ne !== undefined) return normalizeId(candidate) !== normalizeId(filterValue.$ne);
-  if (filterValue.$gte !== undefined) return compareValues(candidate, filterValue.$gte) >= 0;
-  if (filterValue.$lte !== undefined) return compareValues(candidate, filterValue.$lte) <= 0;
-  if (filterValue.$gt !== undefined) return compareValues(candidate, filterValue.$gt) > 0;
-  if (filterValue.$lt !== undefined) return compareValues(candidate, filterValue.$lt) < 0;
+  if (filterValue.$in)
+    return filterValue.$in.map(normalizeId).includes(normalizeId(candidate));
+  if (filterValue.$ne !== undefined)
+    return normalizeId(candidate) !== normalizeId(filterValue.$ne);
+  if (filterValue.$gte !== undefined)
+    return compareValues(candidate, filterValue.$gte) >= 0;
+  if (filterValue.$lte !== undefined)
+    return compareValues(candidate, filterValue.$lte) <= 0;
+  if (filterValue.$gt !== undefined)
+    return compareValues(candidate, filterValue.$gt) > 0;
+  if (filterValue.$lt !== undefined)
+    return compareValues(candidate, filterValue.$lt) < 0;
   if (filterValue.$regex !== undefined) {
     const flags = String(filterValue.$options || "").includes("i") ? "i" : "";
     return new RegExp(filterValue.$regex, flags).test(String(candidate ?? ""));
@@ -97,25 +114,34 @@ const matchesFilter = (row: any, filter: any): boolean => {
 };
 
 const resolveExpression = (expr: any, row: any) => {
-  if (Array.isArray(expr)) return expr.map((item) => resolveExpression(item, row));
+  if (Array.isArray(expr))
+    return expr.map((item) => resolveExpression(item, row));
   if (expr instanceof Date) return expr;
   if (!isObject(expr)) {
-    if (typeof expr === "string" && expr.startsWith("$")) return getValue(row, expr.slice(1));
+    if (typeof expr === "string" && expr.startsWith("$"))
+      return getValue(row, expr.slice(1));
     return expr;
   }
   if (expr.$cond && Array.isArray(expr.$cond)) {
     const [condition, whenTrue, whenFalse] = expr.$cond;
-    return resolveCondition(condition, row) ? resolveExpression(whenTrue, row) : resolveExpression(whenFalse, row);
+    return resolveCondition(condition, row)
+      ? resolveExpression(whenTrue, row)
+      : resolveExpression(whenFalse, row);
   }
   if (expr.$in && Array.isArray(expr.$in)) {
     const [candidateExpr, arrayExpr] = expr.$in;
     const candidate = resolveExpression(candidateExpr, row);
     const arrayValue = resolveExpression(arrayExpr, row);
-    return Array.isArray(arrayValue) ? arrayValue.map(normalizeId).includes(normalizeId(candidate)) : false;
+    return Array.isArray(arrayValue)
+      ? arrayValue.map(normalizeId).includes(normalizeId(candidate))
+      : false;
   }
   if (expr.$eq && Array.isArray(expr.$eq)) {
     const [leftExpr, rightExpr] = expr.$eq;
-    return normalizeId(resolveExpression(leftExpr, row)) === normalizeId(resolveExpression(rightExpr, row));
+    return (
+      normalizeId(resolveExpression(leftExpr, row)) ===
+      normalizeId(resolveExpression(rightExpr, row))
+    );
   }
   const resolved: any = {};
   for (const [key, value] of Object.entries(expr)) {
@@ -130,17 +156,24 @@ const resolveCondition = (condition: any, row: any) => {
       const [candidateExpr, arrayExpr] = condition.$in;
       const candidate = resolveExpression(candidateExpr, row);
       const arrayValue = resolveExpression(arrayExpr, row);
-      return Array.isArray(arrayValue) ? arrayValue.map(normalizeId).includes(normalizeId(candidate)) : false;
+      return Array.isArray(arrayValue)
+        ? arrayValue.map(normalizeId).includes(normalizeId(candidate))
+        : false;
     }
     if (condition.$eq) {
       const [leftExpr, rightExpr] = condition.$eq;
-      return normalizeId(resolveExpression(leftExpr, row)) === normalizeId(resolveExpression(rightExpr, row));
+      return (
+        normalizeId(resolveExpression(leftExpr, row)) ===
+        normalizeId(resolveExpression(rightExpr, row))
+      );
     }
   }
   return Boolean(resolveExpression(condition, row));
 };
 
 class PgDocument {
+  __model: any;
+
   constructor(model: any, data: any) {
     this.__model = model;
     Object.assign(this, data);
@@ -166,7 +199,19 @@ class PgDocument {
 }
 
 class PgQuery {
-  constructor(model: any, filter: any = {}, one = false) {
+  selectedFields: string[] | null = null;
+  includeHidden = false;
+  sortSpec: Record<string, any> | null = null;
+  skipCount?: number;
+  limitCount?: number;
+  populateSpecs: any[] = [];
+  transactionSession?: PostgresSession;
+
+  constructor(
+    public model: PgModel,
+    public filter: any = {},
+    public one = false,
+  ) {
     this.model = model;
     this.filter = filter;
     this.one = one;
@@ -223,10 +268,15 @@ class PgQuery {
       session: this.transactionSession,
     });
 
-    const populated = await this.model.populateRows(rows, this.populateSpecs, this.transactionSession);
-    const payload = this.one ? populated[0] ?? null : populated;
+    const populated = await this.model.populateRows(
+      rows,
+      this.populateSpecs,
+      this.transactionSession,
+    );
+    const payload = this.one ? (populated[0] ?? null) : populated;
     if (lean) return payload;
-    if (this.one) return payload == null ? null : new PgDocument(this.model, payload);
+    if (this.one)
+      return payload == null ? null : new PgDocument(this.model, payload);
     return payload.map((row: any) => new PgDocument(this.model, row));
   }
 
@@ -236,6 +286,8 @@ class PgQuery {
 }
 
 class PgModel {
+  meta: any;
+
   constructor(meta: any) {
     this.meta = meta;
     registry.set(meta.modelName, this);
@@ -247,7 +299,10 @@ class PgModel {
   }
 
   _buildSelectList(selectedFields: string[] | null, includeHidden = false) {
-    const fields = selectedFields && selectedFields.length ? selectedFields : Object.keys(this.meta.fields);
+    const fields =
+      selectedFields && selectedFields.length
+        ? selectedFields
+        : Object.keys(this.meta.fields);
     const set = new Set(fields);
     const selectParts: string[] = [];
 
@@ -271,56 +326,69 @@ class PgModel {
     const params: any[] = [];
     let index = 1;
     const push = (value: any) => {
-      params.push(value instanceof Date ? value.toISOString() : normalizeId(value));
+      params.push(
+        value instanceof Date ? value.toISOString() : normalizeId(value),
+      );
       return `$${index++}`;
     };
     const compile = (current: any): string => {
       const parts: string[] = [];
       for (const [key, value] of Object.entries(current || {})) {
         if (key === "$or" && Array.isArray(value)) {
-          const inner = value.map((entry) => `(${compile(entry)})`).filter(Boolean);
+          const inner = value
+            .map((entry) => `(${compile(entry)})`)
+            .filter(Boolean);
           if (inner.length) parts.push(`(${inner.join(" OR ")})`);
           continue;
         }
         if (key === "$and" && Array.isArray(value)) {
-          const inner = value.map((entry) => `(${compile(entry)})`).filter(Boolean);
+          const inner = value
+            .map((entry) => `(${compile(entry)})`)
+            .filter(Boolean);
           if (inner.length) parts.push(`(${inner.join(" AND ")})`);
           continue;
         }
         const column = this.meta.fields[key] || toSnake(key);
         if (isObject(value)) {
-          if (value.$in) {
-            const placeholders = value.$in.map((item: any) => push(item));
-            parts.push(`${column} = ANY(ARRAY[${placeholders.join(", ")}]::text[])`);
+          const typedValue = value as Record<string, any>;
+          if (typedValue.$in) {
+            const placeholders = typedValue.$in.map((item: any) => push(item));
+            parts.push(
+              `${column} = ANY(ARRAY[${placeholders.join(", ")}]::text[])`,
+            );
             continue;
           }
-          if (value.$ne !== undefined) {
-            parts.push(`${column} <> ${push(value.$ne)}`);
+          if (typedValue.$ne !== undefined) {
+            parts.push(`${column} <> ${push(typedValue.$ne)}`);
             continue;
           }
-          if (value.$gte !== undefined) {
-            parts.push(`${column} >= ${push(value.$gte)}`);
+          if (typedValue.$gte !== undefined) {
+            parts.push(`${column} >= ${push(typedValue.$gte)}`);
             continue;
           }
-          if (value.$lte !== undefined) {
-            parts.push(`${column} <= ${push(value.$lte)}`);
+          if (typedValue.$lte !== undefined) {
+            parts.push(`${column} <= ${push(typedValue.$lte)}`);
             continue;
           }
-          if (value.$gt !== undefined) {
-            parts.push(`${column} > ${push(value.$gt)}`);
+          if (typedValue.$gt !== undefined) {
+            parts.push(`${column} > ${push(typedValue.$gt)}`);
             continue;
           }
-          if (value.$lt !== undefined) {
-            parts.push(`${column} < ${push(value.$lt)}`);
+          if (typedValue.$lt !== undefined) {
+            parts.push(`${column} < ${push(typedValue.$lt)}`);
             continue;
           }
-          if (value.$regex !== undefined) {
-            const op = String(value.$options || "").includes("i") ? "~*" : "~";
-            parts.push(`${column} ${op} ${push(value.$regex)}`);
+          if (typedValue.$regex !== undefined) {
+            const op = String(typedValue.$options || "").includes("i")
+              ? "~*"
+              : "~";
+            parts.push(`${column} ${op} ${push(typedValue.$regex)}`);
             continue;
           }
         }
-        parts.push(value === null ? `${column} IS NULL` : `${column} = ${push(value)}`);
+        parts.push(
+          value === null ? `${column} IS NULL` : `${column} = ${push(value)}`,
+        );
       }
       return parts.join(" AND ");
     };
@@ -342,13 +410,23 @@ class PgModel {
     return session?.getClient();
   }
 
-  async findRows({ filter, selectedFields, includeHidden, sortSpec, skipCount, limitCount, session }: any) {
+  async findRows({
+    filter,
+    selectedFields,
+    includeHidden,
+    sortSpec,
+    skipCount,
+    limitCount,
+    session,
+  }: any) {
     const select = this._buildSelectList(selectedFields, includeHidden);
     const { clause, params } = this._buildWhere(filter);
     const orderClause = this._orderClause(sortSpec);
-    const limitClause = typeof limitCount === "number" ? `LIMIT ${limitCount}` : "";
+    const limitClause =
+      typeof limitCount === "number" ? `LIMIT ${limitCount}` : "";
     const offsetClause = skipCount ? `OFFSET ${skipCount}` : "";
-    const sql = `SELECT ${select} FROM ${this.meta.tableName} ${clause} ${orderClause} ${limitClause} ${offsetClause}`.trim();
+    const sql =
+      `SELECT ${select} FROM ${this.meta.tableName} ${clause} ${orderClause} ${limitClause} ${offsetClause}`.trim();
     const result = await query(sql, params, this._client(session));
     return result.rows.map(rowToEntity);
   }
@@ -367,7 +445,10 @@ class PgModel {
 
   async countDocuments(filter: any = {}) {
     const { clause, params } = this._buildWhere(filter);
-    const result = await query(`SELECT COUNT(*)::int AS count FROM ${this.meta.tableName} ${clause}`, params);
+    const result = await query(
+      `SELECT COUNT(*)::int AS count FROM ${this.meta.tableName} ${clause}`,
+      params,
+    );
     return result.rows[0]?.count ?? 0;
   }
 
@@ -377,8 +458,10 @@ class PgModel {
 
   _toInsertRow(data: any) {
     const row: any = {};
-    for (const [field, column] of Object.entries(this.meta.fields)) {
-      if (field in data) row[column] = data[field];
+    for (const [field, column] of Object.entries(
+      this.meta.fields,
+    ) as Array<[string, string]>) {
+      if (data[field] !== undefined) row[column] = data[field];
     }
     row.id = normalizeId(data._id || data.id || randomId());
     row.created_at = data.createdAt || new Date().toISOString();
@@ -417,7 +500,9 @@ class PgModel {
     }
 
     const row: any = {};
-    for (const [field, column] of Object.entries(this.meta.fields)) {
+    for (const [field, column] of Object.entries(
+      this.meta.fields,
+    ) as Array<[string, string]>) {
       if (field === "_id") continue;
       if (document[field] !== undefined) row[column] = document[field];
     }
@@ -479,7 +564,10 @@ class PgModel {
     }
     assignments.push(`updated_at = ${push(new Date().toISOString())}`);
     const placeholders = ids.map((id) => push(id));
-    const whereClause = ids.length === 1 ? `id = ${placeholders[0]}` : `id = ANY(ARRAY[${placeholders.join(", ")}]::text[])`;
+    const whereClause =
+      ids.length === 1
+        ? `id = ${placeholders[0]}`
+        : `id = ANY(ARRAY[${placeholders.join(", ")}]::text[])`;
     const sql = `UPDATE ${this.meta.tableName} SET ${assignments.join(", ")} WHERE ${whereClause} RETURNING *`;
     const result = await query(sql, values, this._client(options.session));
     return {
@@ -493,15 +581,23 @@ class PgModel {
     const existing = await this.findOne(filter).session(options.session).lean();
     if (!existing) {
       if (!options.upsert) return null;
-      return this.create({ ...filter, ...(update.$set || update) }, options.session);
+      return this.create(
+        { ...filter, ...(update.$set || update) },
+        options.session,
+      );
     }
     await this.updateOne({ _id: existing._id }, update.$set || update, options);
-    return options.new === false ? existing : this.findById(existing._id).session(options.session);
+    return options.new === false
+      ? existing
+      : this.findById(existing._id).session(options.session);
   }
 
   async deleteOne(filter: any) {
     const { clause, params } = this._buildWhere(filter);
-    const result = await query(`DELETE FROM ${this.meta.tableName} ${clause} RETURNING *`, params);
+    const result = await query(
+      `DELETE FROM ${this.meta.tableName} ${clause} RETURNING *`,
+      params,
+    );
     return { deletedCount: result.rowCount };
   }
 
@@ -509,7 +605,8 @@ class PgModel {
     let rows = await this.find({}).lean();
 
     const lookupRows = async (lookup: any) => {
-      const target = registry.get(lookup.from) || registry.get(camelize(lookup.from));
+      const target =
+        registry.get(lookup.from) || registry.get(camelize(lookup.from));
       return target ? target.find({}).lean() : [];
     };
 
@@ -533,7 +630,9 @@ class PgModel {
             ...row,
             [stage.$lookup.as]: foreignRows.filter(
               (foreignRow: any) =>
-                normalizeId(getValue(foreignRow, stage.$lookup.foreignField)) === normalizeId(localValue),
+                normalizeId(
+                  getValue(foreignRow, stage.$lookup.foreignField),
+                ) === normalizeId(localValue),
             ),
           };
         });
@@ -571,13 +670,20 @@ class PgModel {
             if (field === "_id") continue;
             if (expr && typeof expr === "object" && "$sum" in expr) {
               const sumExpr = expr.$sum;
-              const addition = typeof sumExpr === "number" ? sumExpr : Number(resolveExpression(sumExpr, row) || 0);
+              const addition =
+                typeof sumExpr === "number"
+                  ? sumExpr
+                  : Number(resolveExpression(sumExpr, row) || 0);
               target[field] = Number(target[field] || 0) + addition;
             } else if (expr && typeof expr === "object" && "$first" in expr) {
-              if (target[field] === undefined) target[field] = resolveExpression(expr.$first, row);
+              if (target[field] === undefined)
+                target[field] = resolveExpression(expr.$first, row);
             } else if (expr && typeof expr === "object" && "$max" in expr) {
               const nextValue = resolveExpression(expr.$max, row);
-              if (target[field] === undefined || compareValues(nextValue, target[field]) > 0) {
+              if (
+                target[field] === undefined ||
+                compareValues(nextValue, target[field]) > 0
+              ) {
                 target[field] = nextValue;
               }
             }
@@ -618,7 +724,11 @@ class PgModel {
           current.map(async (row: any) => {
             const value = row[normalized.path];
             if (!value || typeof value !== "object") return row;
-            const nested = await target.populateRows([value], [normalized.populate], session);
+            const nested = await target.populateRows(
+              [value],
+              [normalized.populate],
+              session,
+            );
             return { ...row, [normalized.path]: nested[0] };
           }),
         );
@@ -628,7 +738,8 @@ class PgModel {
   }
 }
 
-export const createModel = <T = any>(meta: any) => registerModel(new PgModel(meta));
+export const createModel = <T = any>(meta: any) =>
+  registerModel(new PgModel(meta));
 export const registerModel = (model: any) => {
   registry.set(model.meta.modelName, model);
   registry.set(model.meta.tableName, model);
