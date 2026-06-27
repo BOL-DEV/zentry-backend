@@ -64,7 +64,11 @@ export const login = catchAsync(
       req.body,
     );
 
-    const user = await DashboardUser.findOne({ email }).select("+password");
+    // Load the fields used by the login/session logic; this ORM only returns
+    // explicitly selected columns.
+    const user = await DashboardUser.findOne({ email }).select(
+      "+password _id fullName email role organizerId isActive",
+    );
 
     if (!user || !(await bcrypt.compare(password, user.password))) {
       return next(new AppError("Incorrect email or password", 401));
