@@ -8,6 +8,7 @@ const ensureInitialAdmin = async () => {
   const fullName = (process.env.ADMIN_FULL_NAME || "").trim();
   const email = (process.env.ADMIN_EMAIL || "").trim();
   const password = process.env.ADMIN_PASSWORD || "";
+  const isActive = (process.env.ADMIN_IS_ACTIVE || "true").trim() === "true";
 
   if (!fullName || !email || !password) {
     console.log(
@@ -31,9 +32,9 @@ const ensureInitialAdmin = async () => {
   await query(
     `
     INSERT INTO admins (id, full_name, email, password, is_active, created_at, updated_at)
-    VALUES (gen_random_uuid()::text, $1, $2, $3, TRUE, NOW(), NOW())
+    VALUES (gen_random_uuid()::text, $1, $2, $3, $4, NOW(), NOW())
     `,
-    [fullName, email, hashedPassword],
+    [fullName, email, hashedPassword, isActive],
   );
 
   console.log(`Initial admin seeded for ${email}.`);
