@@ -1,7 +1,8 @@
-import { model, Schema, Document, Types } from "mongoose";
+import { createModel } from "../db/orm";
 
-export interface ITicketType extends Document {
-  eventId: Types.ObjectId;
+export interface ITicketType {
+  _id: string;
+  eventId: string;
   name: string;
   description?: string;
   price: number;
@@ -10,59 +11,29 @@ export interface ITicketType extends Document {
   quantityReserved: number;
   isActive: boolean;
   displayOrder: number;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
-const TicketTypeSchema = new Schema<ITicketType>(
-  {
-    name: {
-      type: String,
-      required: [true, "A ticket must have a name"],
-    },
-
-    description: {
-      type: String,
-      required: [true, "A ticket must have a description"],
-    },
-    price: {
-      type: Number,
-      required: [true, "A ticket must have a price"],
-    },
-    eventId: {
-      type: Schema.Types.ObjectId,
-      ref: "Event",
-      required: [true, "A ticket must belong to an event"],
-    },
-    quantityAvailable: {
-      type: Number,
-      required: [true, "A ticket must have an available quantity"],
-    },
-    quantitySold: {
-      type: Number,
-      default: 0,
-    },
-    quantityReserved: {
-      type: Number,
-      default: 0,
-      min: [0, "Reserved quantity cannot be negative"],
-    },
-    isActive: {
-      type: Boolean,
-      default: true,
-    },
-
-    displayOrder: {
-      type: Number,
-      required: [true, "A ticket must have a display order"],
-      default: 0,
-    },
+export const TicketType = createModel<ITicketType>({
+  modelName: "TicketType",
+  tableName: "ticket_types",
+  fields: {
+    _id: "id",
+    eventId: "event_id",
+    name: "name",
+    description: "description",
+    price: "price",
+    quantityAvailable: "quantity_available",
+    quantitySold: "quantity_sold",
+    quantityReserved: "quantity_reserved",
+    isActive: "is_active",
+    displayOrder: "display_order",
+    createdAt: "created_at",
+    updatedAt: "updated_at",
   },
-  {
-    timestamps: true,
-    versionKey: false,
+  relations: {
+    eventId: { modelName: "Event" },
   },
-);
+});
 
-TicketTypeSchema.index({ eventId: 1, displayOrder: 1 });
-TicketTypeSchema.index({ eventId: 1, name: 1 }, { unique: true });
-
-export const TicketType = model<ITicketType>("TicketType", TicketTypeSchema);

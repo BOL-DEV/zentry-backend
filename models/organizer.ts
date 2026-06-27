@@ -1,126 +1,63 @@
-import { Schema, model } from "mongoose";
+import { createModel } from "../db/orm";
 
-const organizerSchema = new Schema(
-  {
-    name: {
-      type: String,
-      required: [true, "Organizer name is required"],
-      trim: true,
-    },
-    slug: {
-      type: String,
-      unique: true,
-      required: [true, "Organizer slug is required"],
-      trim: true,
-      lowercase: true,
-      index: true,
-    },
-    logoUrl: {
-      type: String,
-      required: [true, "Organizer logo is required"],
-      trim: true,
-    },
-    logoPublicId: {
-      type: String,
-      trim: true,
-      default: null,
-    },
-    bannerUrl: {
-      type: String,
-      required: [true, "Organizer banner is required"],
-      trim: true,
-    },
-    bannerPublicId: {
-      type: String,
-      trim: true,
-      default: null,
-    },
-    heroTitle: {
-      type: String,
-      required: [true, "Organizer hero title is required"],
-      trim: true,
-    },
-    heroSubtitle: {
-      type: String,
-      required: [true, "Organizer hero subtitle is required"],
-      trim: true,
-    },
-    about: {
-      type: String,
-      required: [true, "Organizer about is required"],
-      trim: true,
-    },
-    contactEmail: {
-      type: String,
-      required: [true, "Organizer contact email is required"],
-      trim: true,
-      lowercase: true,
-    },
-    contactPhone: {
-      type: String,
-      required: [true, "Organizer contact phone is required"],
-      trim: true,
-    },
-    location: {
-      type: String,
-      required: [true, "Organizer location is required"],
-      trim: true,
-    },
-    bankDetails: {
-      bankName: {
-        type: String,
-        trim: true,
-      },
-      bankCode: {
-        type: String,
-        trim: true,
-      },
-      accountNumber: {
-        type: String,
-        trim: true,
-      },
-      accountName: {
-        type: String,
-        trim: true,
-      },
-    },
-    staffSessionLimit: {
-      type: Number,
-      default: 3,
-      min: 1,
-      max: 20,
-    },
-    organizerSessionLimit: {
-      type: Number,
-      default: 1,
-      min: 1,
-      max: 20,
-    },
-    platformFeeOverride: {
-      flatFeeBelowThreshold: {
-        type: Number,
-        min: 0,
-      },
-      thresholdAmount: {
-        type: Number,
-        min: 0,
-      },
-      percentAboveThreshold: {
-        type: Number,
-        min: 0,
-      },
-    },
-    isActive: {
-      type: Boolean,
-      default: true,
-    },
-  },
-  {
-    timestamps: true,
-    versionKey: false,
-  },
-);
+export interface IOrganizer {
+  _id: string;
+  name: string;
+  slug: string;
+  logoUrl: string;
+  logoPublicId?: string | null;
+  bannerUrl: string;
+  bannerPublicId?: string | null;
+  heroTitle: string;
+  heroSubtitle: string;
+  about: string;
+  contactEmail: string;
+  contactPhone: string;
+  location: string;
+  bankDetails?: {
+    bankName?: string | null;
+    bankCode?: string | null;
+    accountNumber?: string | null;
+    accountName?: string | null;
+  } | null;
+  staffSessionLimit: number;
+  organizerSessionLimit: number;
+  platformFeeOverride?: {
+    flatFeeBelowThreshold?: number | null;
+    thresholdAmount?: number | null;
+    percentAboveThreshold?: number | null;
+  } | null;
+  isActive: boolean;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
 
-const Organizer = model("Organizer", organizerSchema);
+const Organizer = createModel<IOrganizer>({
+  modelName: "Organizer",
+  tableName: "organizers",
+  fields: {
+    _id: "id",
+    name: "name",
+    slug: "slug",
+    logoUrl: "logo_url",
+    logoPublicId: "logo_public_id",
+    bannerUrl: "banner_url",
+    bannerPublicId: "banner_public_id",
+    heroTitle: "hero_title",
+    heroSubtitle: "hero_subtitle",
+    about: "about",
+    contactEmail: "contact_email",
+    contactPhone: "contact_phone",
+    location: "location",
+    bankDetails: "bank_details",
+    staffSessionLimit: "staff_session_limit",
+    organizerSessionLimit: "organizer_session_limit",
+    platformFeeOverride: "platform_fee_override",
+    isActive: "is_active",
+    createdAt: "created_at",
+    updatedAt: "updated_at",
+  },
+});
 
 export default Organizer;
+

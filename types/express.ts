@@ -1,4 +1,3 @@
-import { Types } from "mongoose";
 import { IDashboardUser } from "../models/dasboardUser";
 import { IUserSession } from "../models/userSession";
 import { IAdmin } from "../models/admin";
@@ -8,13 +7,13 @@ declare global {
   namespace Express {
     interface Request {
       organizer?: {
-        _id: Types.ObjectId;
+        _id: string;
         slug: string;
         name: string;
       };
       event?: {
-        _id: Types.ObjectId;
-        organizerId: Types.ObjectId;
+        _id: string;
+        organizerId: string;
         title: string;
       };
       user?: IDashboardUser;
