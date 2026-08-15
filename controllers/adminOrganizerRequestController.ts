@@ -1,5 +1,4 @@
 import { Request, Response, NextFunction } from "express";
-import mongoose from "mongoose";
 import OrganizerRequest from "../models/organizerRequest";
 import Organizer from "../models/organizer";
 import DashboardUser from "../models/dasboardUser";
@@ -16,6 +15,8 @@ import {
 } from "../services/organizerRequestService";
 import { generateTemporaryPassword } from "../utils/generateTemporaryPassword";
 import { sendEmail } from "../utils/email";
+import { startSession } from "../db/pg";
+import { isValidId } from "../utils/id";
 
 export const getAdminOrganizerRequests = catchAsync(
   async (req: Request, res: Response) => {
@@ -71,7 +72,7 @@ export const getAdminOrganizerRequestById = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
     const { requestId } = organizerRequestIdParamSchema.parse(req.params);
 
-    if (!mongoose.Types.ObjectId.isValid(requestId)) {
+    if (!isValidId(requestId)) {
       return next(new AppError("Invalid request ID", 400));
     }
 
@@ -95,11 +96,11 @@ export const approveAdminOrganizerRequest = catchAsync(
     const { requestId } = organizerRequestIdParamSchema.parse(req.params);
     const payload = approveOrganizerRequestSchema.parse(req.body);
 
-    if (!mongoose.Types.ObjectId.isValid(requestId)) {
+    if (!isValidId(requestId)) {
       return next(new AppError("Invalid request ID", 400));
     }
 
-    const session = await mongoose.startSession();
+    const session = await startSession();
 
     type ApprovalResult = {
       organizer: any;
@@ -111,7 +112,8 @@ export const approveAdminOrganizerRequest = catchAsync(
     let result: ApprovalResult | undefined;
 
     try {
-      result = await session.withTransaction(async () => {
+      await session.startTransaction();
+      result = await (async () => {
         const requestDoc =
           await OrganizerRequest.findById(requestId).session(session);
 
@@ -187,7 +189,7 @@ export const approveAdminOrganizerRequest = catchAsync(
           );
         }
 
-        const organizer = new Organizer({
+        const organizer = await Organizer.create({
           name: requestDoc.name,
           slug,
           logoUrl: requestDoc.logoUrl,
@@ -202,20 +204,16 @@ export const approveAdminOrganizerRequest = catchAsync(
           location: requestDoc.location || "",
           bankDetails: requestDoc.bankDetails,
           isActive: true,
-        });
+        }, session);
 
-        await organizer.save({ session });
-
-        const dashboardUser = new DashboardUser({
+        const dashboardUser = await DashboardUser.create({
           organizerId: organizer._id,
           fullName: requestDoc.name,
           email: loginEmail,
           password: temporaryPassword,
           role: "organizer",
           isActive: true,
-        });
-
-        await dashboardUser.save({ session });
+        }, session);
 
         requestDoc.status = "approved";
         requestDoc.approvedAt = new Date();
@@ -225,7 +223,7 @@ export const approveAdminOrganizerRequest = catchAsync(
         requestDoc.createdOrganizerId = organizer._id;
         requestDoc.createdDashboardUserId = dashboardUser._id;
 
-        await requestDoc.save({ session });
+        await requestDoc.save(session);
 
         return {
           organizer: {
@@ -246,7 +244,11 @@ export const approveAdminOrganizerRequest = catchAsync(
           temporaryPassword,
           notificationEmail: organizer.contactEmail,
         };
-      });
+      })();
+      await session.commitTransaction();
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
     } finally {
       await session.endSession();
     }
@@ -329,7 +331,7 @@ export const rejectAdminOrganizerRequest = catchAsync(
     const { requestId } = organizerRequestIdParamSchema.parse(req.params);
     const payload = rejectOrganizerRequestSchema.parse(req.body);
 
-    if (!mongoose.Types.ObjectId.isValid(requestId)) {
+    if (!isValidId(requestId)) {
       return next(new AppError("Invalid request ID", 400));
     }
 

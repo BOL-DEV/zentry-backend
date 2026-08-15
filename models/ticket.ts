@@ -1,83 +1,44 @@
-import { model, Types, Schema, Document } from "mongoose";
+import { createModel } from "../db/orm";
 
-export interface ITicket extends Document {
-  eventId: Types.ObjectId;
-  ticketTypeId: Types.ObjectId;
-  orderId: Types.ObjectId;
+export interface ITicket {
+  _id: string;
+  eventId: string;
+  ticketTypeId: string;
+  orderId: string;
   buyerName: string;
   buyerEmail: string;
   ticketCode: string;
   status: "valid" | "checked-in";
   checkedInAt?: Date | null;
-  verifiedBy?: Types.ObjectId | null;
-  createdAt: Date;
+  verifiedBy?: string | null;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
-const TicketSchema = new Schema(
-  {
-    eventId: {
-      type: Types.ObjectId,
-      ref: "Event",
-      required: [true, "Ticket must belong to an event"],
-      index: true,
-    },
-    ticketTypeId: {
-      type: Types.ObjectId,
-      ref: "TicketType",
-      required: [true, "Ticket must belong to a ticket type"],
-    },
-    orderId: {
-      type: Types.ObjectId,
-      ref: "Order",
-      required: [true, "Ticket must belong to an order"],
-      index: true,
-    },
-    buyerName: {
-      type: String,
-      required: [true, "Buyer name is required"],
-      trim: true,
-    },
-    buyerEmail: {
-      type: String,
-      required: [true, "Buyer email is required"],
-      trim: true,
-      lowercase: true,
-    },
-    ticketCode: {
-      type: String,
-      required: [true, "Ticket code is required"],
-      unique: true,
-      index: true,
-      trim: true,
-      uppercase: true,
-    },
-    status: {
-      type: String,
-      enum: ["valid", "checked-in"],
-      default: "valid",
-    },
-    checkedInAt: {
-      type: Date,
-      default: null,
-      index: true,
-    },
-    verifiedBy: {
-      type: Types.ObjectId,
-      ref: "DashboardUser",
-      default: null,
-      index: true,
-    },
+const Ticket = createModel<ITicket>({
+  modelName: "Ticket",
+  tableName: "tickets",
+  fields: {
+    _id: "id",
+    eventId: "event_id",
+    ticketTypeId: "ticket_type_id",
+    orderId: "order_id",
+    buyerName: "buyer_name",
+    buyerEmail: "buyer_email",
+    ticketCode: "ticket_code",
+    status: "status",
+    checkedInAt: "checked_in_at",
+    verifiedBy: "verified_by",
+    createdAt: "created_at",
+    updatedAt: "updated_at",
   },
-  {
-    timestamps: true,
-    versionKey: false,
+  relations: {
+    eventId: { modelName: "Event" },
+    ticketTypeId: { modelName: "TicketType" },
+    orderId: { modelName: "Order" },
+    verifiedBy: { modelName: "DashboardUser" },
   },
-);
-
-// TicketSchema.index({ orderId: 1 });
-TicketSchema.index({ eventId: 1, status: 1 });
-TicketSchema.index({ eventId: 1, checkedInAt: -1 });
-
-const Ticket = model<ITicket>("Ticket", TicketSchema);
+});
 
 export default Ticket;
+

@@ -1,7 +1,8 @@
-import { model, Schema, Types, type HydratedDocument } from "mongoose";
+import { createModel } from "../db/orm";
 
 export interface IOrder {
-  eventId: Types.ObjectId;
+  _id: string;
+  eventId: string;
   buyerName: string;
   buyerEmail: string;
   buyerPhone?: string;
@@ -11,124 +12,57 @@ export interface IOrder {
   accessToken?: string;
   reservationExpiresAt?: Date;
   reservationReleasedAt?: Date;
-
   paymentGateway: "squad";
   paidAt?: Date;
-
-  // Fee Tracking
   squadTransferFee: number;
   squadGatewayFee: number;
   platformFeeTotal: number;
   organizerPayoutAmount: number;
-
   settlementStatus: "pending" | "processing" | "settled" | "failed";
   settlementBatchId?: string;
   settlementDate?: Date;
   settlementLastError?: string;
   settlementLastAttemptAt?: Date;
-
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
-export type OrderDocument = HydratedDocument<IOrder>;
+export type OrderDocument = any;
 
-const OrderSchema = new Schema<IOrder>(
-  {
-    eventId: {
-      type: Schema.Types.ObjectId,
-      ref: "Event",
-      required: [true, "Order must belong to an event"],
-    },
-    buyerName: {
-      type: String,
-      required: [true, "Purchaser name is required"],
-      trim: true,
-    },
-    buyerEmail: {
-      type: String,
-      required: [true, "Purchaser email is required"],
-      trim: true,
-      lowercase: true,
-    },
-    buyerPhone: {
-      type: String,
-      trim: true,
-      default: "",
-    },
-    totalAmount: {
-      type: Number,
-      required: [true, "Order must have a total amount"],
-      min: [0, "Total amount cannot be negative"],
-    },
-    paymentStatus: {
-      type: String,
-      enum: ["pending", "paid", "cancelled"],
-      default: "pending",
-    },
-    paymentReference: {
-      type: String,
-      trim: true,
-    },
-    accessToken: {
-      type: String,
-      trim: true,
-      select: false,
-    },
-    reservationExpiresAt: Date,
-    reservationReleasedAt: Date,
-    paymentGateway: {
-      type: String,
-      enum: ["squad"],
-      default: "squad",
-    },
-    paidAt: Date,
-    platformFeeTotal: {
-      type: Number,
-      default: 0,
-    },
-    squadGatewayFee: {
-      type: Number,
-      default: 0,
-    },
-    squadTransferFee: {
-      type: Number,
-      default: 0,
-    },
-    settlementStatus: {
-      type: String,
-      enum: ["pending", "processing", "settled", "failed"],
-      default: "pending",
-    },
-    settlementBatchId: {
-      type: String,
-      trim: true,
-      default: "",
-    },
-    settlementDate: Date,
-    settlementLastError: {
-      type: String,
-      trim: true,
-      default: "",
-    },
-    settlementLastAttemptAt: Date,
-    organizerPayoutAmount: {
-      type: Number,
-      default: 0,
-    },
+const Order = createModel<IOrder>({
+  modelName: "Order",
+  tableName: "orders",
+  fields: {
+    _id: "id",
+    eventId: "event_id",
+    buyerName: "buyer_name",
+    buyerEmail: "buyer_email",
+    buyerPhone: "buyer_phone",
+    totalAmount: "total_amount",
+    paymentStatus: "payment_status",
+    paymentReference: "payment_reference",
+    accessToken: "access_token",
+    reservationExpiresAt: "reservation_expires_at",
+    reservationReleasedAt: "reservation_released_at",
+    paymentGateway: "payment_gateway",
+    paidAt: "paid_at",
+    squadTransferFee: "squad_transfer_fee",
+    squadGatewayFee: "squad_gateway_fee",
+    platformFeeTotal: "platform_fee_total",
+    organizerPayoutAmount: "organizer_payout_amount",
+    settlementStatus: "settlement_status",
+    settlementBatchId: "settlement_batch_id",
+    settlementDate: "settlement_date",
+    settlementLastError: "settlement_last_error",
+    settlementLastAttemptAt: "settlement_last_attempt_at",
+    createdAt: "created_at",
+    updatedAt: "updated_at",
   },
-  {
-    timestamps: true,
-    versionKey: false,
+  hiddenFields: ["accessToken"],
+  relations: {
+    eventId: { modelName: "Event" },
   },
-);
-
-OrderSchema.index({ eventId: 1, createdAt: -1 });
-OrderSchema.index({ paymentReference: 1 }, { unique: true, sparse: true });
-OrderSchema.index({ accessToken: 1 }, { unique: true, sparse: true });
-OrderSchema.index({ eventId: 1, paymentStatus: 1, createdAt: -1 });
-OrderSchema.index({ eventId: 1, settlementStatus: 1, paidAt: -1 });
-
-const Order = model<IOrder>("Order", OrderSchema);
+});
 
 export default Order;
+

@@ -1,4 +1,4 @@
-import type { ClientSession } from "mongoose";
+import type { PostgresSession } from "../db/pg";
 import Organizer from "../models/organizer";
 import DashboardUser from "../models/dasboardUser";
 import { generateSlug } from "../utils/slugify";
@@ -6,7 +6,7 @@ import { generateSlug } from "../utils/slugify";
 type ResolveUniqueOrganizerSlugArgs = {
   name: string;
   preferredSlug?: string;
-  session?: ClientSession;
+  session?: PostgresSession;
 };
 
 export const resolveUniqueOrganizerSlug = async ({
@@ -41,7 +41,7 @@ export const resolveUniqueOrganizerSlug = async ({
 
 type ResolveUniqueDashboardLoginEmailArgs = {
   slug: string;
-  session?: ClientSession;
+  session?: PostgresSession;
   domain?: string;
 };
 

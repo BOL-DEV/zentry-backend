@@ -1,46 +1,30 @@
-import mongoose, { ConnectOptions } from "mongoose";
-import dotenv from "dotenv";
+const dotenv = require("dotenv") as typeof import("dotenv");
 
 dotenv.config({ path: "./.env" });
 
-const DB = process.env.MONGO_URI?.replace(
-  "<db_password>",
-  process.env.DB_PASSWORD as string,
-);
-
-const clientOptions = {
-  serverApi: { version: "1", strict: true, deprecationErrors: true },
-};
-
-let connectionPromise: Promise<typeof mongoose> | null = null;
+let connectionPromise: Promise<void> | null = null;
 
 const connectDB = async () => {
-  if (mongoose.connection.readyState === 1) {
-    return mongoose;
-  }
-
   if (connectionPromise) {
     return connectionPromise;
   }
 
-  try {
-    connectionPromise = mongoose.connect(
-      DB as string,
-      clientOptions as ConnectOptions,
-    );
+  connectionPromise = (async () => {
+    try {
+      const { ensureDatabaseSchema } = require("../db/init");
+      const { pool } = require("../db/pg");
 
-    await connectionPromise;
-    await mongoose.connection.db?.admin().ping();
-    console.log("Database connection successful");
+      await pool.query("SELECT 1");
+      await ensureDatabaseSchema();
+      console.log("Postgres connection successful");
+    } catch (error) {
+      console.error("Database connection error:", error);
+      connectionPromise = null;
+      throw error;
+    }
+  })();
 
-    return mongoose;
-  } catch (error) {
-    console.error("Database connection error:", error);
-    connectionPromise = null;
-    await mongoose.disconnect();
-    process.exit(1);
-  }
+  return connectionPromise;
 };
-
 
 export default connectDB;

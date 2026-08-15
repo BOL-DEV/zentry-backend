@@ -29,3 +29,7 @@ export const uploadOrganizerMedia = upload.fields([
 export const uploadEventPoster = upload.fields([{ name: "poster", maxCount: 1 }]);
 
 export const uploadGalleryMedia = upload.fields([{ name: "image", maxCount: 1 }]);
+
+export const uploadGalleryMediaBulk = upload.fields([
+  { name: "images", maxCount: 20 },
+]);

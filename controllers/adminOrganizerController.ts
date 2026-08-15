@@ -1,5 +1,4 @@
 import { Request, Response, NextFunction } from "express";
-import mongoose from "mongoose";
 import Organizer from "../models/organizer";
 import Event from "../models/event";
 import Order from "../models/order";
@@ -34,6 +33,7 @@ import {
   getDefaultPlatformFeeSettings,
   getEffectivePlatformFeeSettings,
 } from "../services/platformFeeService";
+import { isValidId } from "../utils/id";
 
 const parseBooleanQuery = (value: unknown): boolean | undefined => {
   if (typeof value !== "string") return undefined;
@@ -235,7 +235,7 @@ export const getAdminOrganizerById = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
     const { organizerId } = organizerIdParamSchema.parse(req.params);
 
-    if (!mongoose.Types.ObjectId.isValid(organizerId)) {
+    if (!isValidId(organizerId)) {
       return next(new AppError("Invalid organizer ID", 400));
     }
 
@@ -756,7 +756,7 @@ export const toggleAdminOrganizerActiveState = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
     const { organizerId } = organizerIdParamSchema.parse(req.params);
 
-    if (!mongoose.Types.ObjectId.isValid(organizerId)) {
+    if (!isValidId(organizerId)) {
       return next(new AppError("Invalid organizer ID", 400));
     }
 

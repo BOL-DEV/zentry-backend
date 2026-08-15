@@ -40,3 +40,9 @@ export const getUploadedFile = (req: Request, fieldName: string) => {
 
   return files?.[fieldName]?.[0];
 };
+
+export const getUploadedFiles = (req: Request, fieldName: string) => {
+  const files = req.files as Record<string, Express.Multer.File[]> | undefined;
+
+  return files?.[fieldName] ?? [];
+};
