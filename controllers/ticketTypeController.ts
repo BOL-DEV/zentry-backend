@@ -10,6 +10,7 @@ import { catchAsync } from "../utils/catchAsync";
 import { AppError } from "../utils/appError";
 import Event from "../models/event";
 import { eventIdParamSchema } from "../validations/event.schema";
+import { notifyWaitlistForTicketType } from "../services/waitlistService";
 
 export const createTicketType = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
@@ -155,8 +156,20 @@ export const updateTicketTypeQuantity = catchAsync(
       );
     }
 
+    const previousQuantityAvailable = Number(ticketType.quantityAvailable);
     ticketType.quantityAvailable = quantityAvailable;
     await ticketType.save();
+
+    if (quantityAvailable > previousQuantityAvailable) {
+      try {
+        await notifyWaitlistForTicketType(
+          ticketType._id,
+          quantityAvailable - previousQuantityAvailable,
+        );
+      } catch (error) {
+        console.error("Failed to notify waitlist for ticket type:", error);
+      }
+    }
 
     res.status(200).json({
       status: "success",

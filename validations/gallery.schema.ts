@@ -81,3 +81,28 @@ export const galleryItemIdParamSchema = z.object({
     .regex(/^[0-9a-fA-F]{24}$/, "Invalid gallery item ID"),
 });
 
+export const submitGalleryItemSchema = z.object({
+  caption: z
+    .string()
+    .trim()
+    .max(200, "Caption must be at most 200 characters")
+    .optional(),
+  submittedByName: z
+    .string()
+    .trim()
+    .max(100, "Name must be at most 100 characters")
+    .optional(),
+});
+
+export const moderateGalleryItemSchema = z.object({
+  action: z.enum(["approve", "reject"]),
+});
+
+export const bulkCreateGalleryItemsSchema = z.object({
+  caption: z
+    .string()
+    .trim()
+    .max(200, "Caption must be at most 200 characters")
+    .optional(),
+});
+

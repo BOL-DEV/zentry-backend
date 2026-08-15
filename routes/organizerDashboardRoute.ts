@@ -11,9 +11,14 @@ import {
 import {
   bulkUpdateGalleryItems,
   createGalleryItem,
+  createGalleryItemsBulk,
+  getPendingGalleryItems,
+  moderateGalleryItem,
   updateGalleryItem,
 } from "../controllers/galleryController";
 import { createEvent, updateEvent } from "../controllers/eventController";
+import { generateEventCopy } from "../controllers/aiController";
+import { getEventWaitlist } from "../controllers/waitlistController";
 import {
   createTicketType,
   updateTicketType,
@@ -36,6 +41,7 @@ import {
 import {
   uploadEventPoster,
   uploadGalleryMedia,
+  uploadGalleryMediaBulk,
   uploadOrganizerMedia,
 } from "../middlewares/upload";
 
@@ -57,14 +63,27 @@ router
   .patch(restrictTo("organizer"), uploadEventPoster, updateEvent);
 
 router
+  .route("/ai/event-copy")
+  .post(restrictTo("organizer"), generateEventCopy);
+
+router
   .route("/gallery")
   .post(restrictTo("organizer"), uploadGalleryMedia, createGalleryItem);
 router
   .route("/gallery/bulk")
+  .post(restrictTo("organizer"), uploadGalleryMediaBulk, createGalleryItemsBulk)
   .patch(restrictTo("organizer"), bulkUpdateGalleryItems);
 router
   .route("/gallery/:galleryItemId")
   .patch(restrictTo("organizer"), uploadGalleryMedia, updateGalleryItem);
+
+router
+  .route("/gallery/pending")
+  .get(restrictTo("organizer"), getPendingGalleryItems);
+
+router
+  .route("/gallery/:galleryItemId/moderate")
+  .patch(restrictTo("organizer"), moderateGalleryItem);
 
 router
   .route("/profile")
@@ -88,6 +107,10 @@ router
 router
   .route("/events/:eventId/attendees")
   .get(restrictTo("organizer"), getEventAttendees);
+
+router
+  .route("/events/:eventId/waitlist")
+  .get(restrictTo("organizer"), getEventWaitlist);
 
 router
   .route("/events/:eventId/scanner-summary")

@@ -8,6 +8,8 @@ interface IGallery {
   caption?: string;
   altText?: string;
   displayOrder?: number;
+  status?: "published" | "pending";
+  submittedByName?: string | null;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -23,6 +25,8 @@ const Gallery = createModel<IGallery>({
     caption: "caption",
     altText: "alt_text",
     displayOrder: "display_order",
+    status: "status",
+    submittedByName: "submitted_by_name",
     createdAt: "created_at",
     updatedAt: "updated_at",
   },

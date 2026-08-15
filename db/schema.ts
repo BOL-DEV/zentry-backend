@@ -218,7 +218,36 @@ const createCommonTablesSql = [
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   );
   `,
+  `
+  CREATE TABLE IF NOT EXISTS waitlist_entries (
+    id TEXT PRIMARY KEY,
+    event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+    ticket_type_id TEXT NOT NULL REFERENCES ticket_types(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    email TEXT NOT NULL,
+    phone TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'waiting',
+    notified_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT waitlist_entries_ticket_type_email_unique UNIQUE (ticket_type_id, email)
+  );
+  `,
+  `
+  CREATE TABLE IF NOT EXISTS gallery_reactions (
+    id TEXT PRIMARY KEY,
+    gallery_item_id TEXT NOT NULL REFERENCES galleries(id) ON DELETE CASCADE,
+    ip_address TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT gallery_reactions_item_ip_unique UNIQUE (gallery_item_id, ip_address)
+  );
+  `,
 ].join("\n");
+
+const alterTablesSql = [
+  `ALTER TABLE galleries ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'published'`,
+  `ALTER TABLE galleries ADD COLUMN IF NOT EXISTS submitted_by_name TEXT`,
+].join(";\n");
 
 const createIndexesSql = [
   `CREATE INDEX IF NOT EXISTS idx_dashboard_users_organizer_id ON dashboard_users(organizer_id)`,
@@ -236,11 +265,14 @@ const createIndexesSql = [
   `CREATE INDEX IF NOT EXISTS idx_galleries_organizer_id_order ON galleries(organizer_id, display_order)`,
   `CREATE INDEX IF NOT EXISTS idx_organizer_requests_status_created_at ON organizer_requests(status, created_at DESC)`,
   `CREATE INDEX IF NOT EXISTS idx_organizer_requests_created_at ON organizer_requests(created_at DESC)`,
+  `CREATE INDEX IF NOT EXISTS idx_waitlist_entries_ticket_type_status ON waitlist_entries(ticket_type_id, status, created_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_gallery_reactions_item ON gallery_reactions(gallery_item_id)`,
 ].join(";\n");
 
 export const ensureSchemaSql = [
   createExtensionSql,
   createCommonTablesSql,
+  alterTablesSql,
   createIndexesSql,
 ].join(";\n");
 
