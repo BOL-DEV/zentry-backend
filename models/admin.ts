@@ -1,30 +1,55 @@
-import { createModel } from "../db/orm";
+import { Schema, model, Document } from "mongoose";
+import { hash, compare } from "bcryptjs";
 
-export interface IAdmin {
-  _id: string;
+export interface IAdmin extends Document {
   fullName: string;
   email: string;
   password: string;
   isActive: boolean;
-  createdAt?: Date;
-  updatedAt?: Date;
-  comparePassword?: (candidatePassword: string) => Promise<boolean>;
+  comparePassword(candidatePassword: string): Promise<boolean>;
 }
 
-const Admin = createModel<IAdmin>({
-  modelName: "Admin",
-  tableName: "admins",
-  fields: {
-    _id: "id",
-    fullName: "full_name",
-    email: "email",
-    password: "password",
-    isActive: "is_active",
-    createdAt: "created_at",
-    updatedAt: "updated_at",
+const adminSchema = new Schema<IAdmin>(
+  {
+    fullName: {
+      type: String,
+      required: [true, "Admin full name is required"],
+      trim: true,
+    },
+    email: {
+      type: String,
+      required: [true, "Admin email is required"],
+      unique: true,
+      lowercase: true,
+      trim: true,
+    },
+    password: {
+      type: String,
+      required: [true, "Admin password is required"],
+      minlength: 8,
+      select: false,
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
   },
-  hiddenFields: ["password"],
+  {
+    timestamps: true,
+  },
+);
+
+adminSchema.pre("save", async function () {
+  if (!this.isModified("password")) return;
+  this.password = await hash(this.password, 12);
 });
 
-export default Admin;
+adminSchema.methods.comparePassword = async function (
+  candidatePassword: string,
+) {
+  return compare(candidatePassword, this.password);
+};
 
+const Admin = model<IAdmin>("Admin", adminSchema);
+
+export default Admin;

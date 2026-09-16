@@ -1,3 +1,4 @@
+import { Types } from "mongoose";
 import { Request, Response, NextFunction } from "express";
 import Event from "../models/event";
 import Order from "../models/order";
@@ -11,7 +12,6 @@ import {
   getOrganizerSettlementSummaryData,
   syncSquadSettlements,
 } from "../services/syncSquadSettlement";
-import { isValidId } from "../utils/id";
 
 export const getOrganizerDashboardSummary = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
@@ -246,7 +246,7 @@ export const getEventSettlementSummary = catchAsync(
 
     const { eventId } = eventIdParamSchema.parse(req.params);
 
-    if (!isValidId(eventId)) {
+    if (!Types.ObjectId.isValid(eventId)) {
       return next(new AppError("Invalid event ID", 400));
     }
 

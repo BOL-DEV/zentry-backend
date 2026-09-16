@@ -1,8 +1,7 @@
-import { createModel } from "../db/orm";
+import { model, Schema, Document, Types } from "mongoose";
 
-export interface IEvent {
-  _id: string;
-  organizerId: string;
+export interface IEvent extends Document {
+  organizerId: Types.ObjectId;
   title: string;
   description: string;
   date: Date;
@@ -11,31 +10,67 @@ export interface IEvent {
   posterPublicId?: string | null;
   dressCode: string;
   policies: string;
-  createdAt?: Date;
-  updatedAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
-const Event = createModel<IEvent>({
-  modelName: "Event",
-  tableName: "events",
-  fields: {
-    _id: "id",
-    organizerId: "organizer_id",
-    title: "title",
-    description: "description",
-    date: "date",
-    location: "location",
-    posterUrl: "poster_url",
-    posterPublicId: "poster_public_id",
-    dressCode: "dress_code",
-    policies: "policies",
-    createdAt: "created_at",
-    updatedAt: "updated_at",
+const eventSchema = new Schema<IEvent>(
+  {
+    organizerId: {
+      type: Schema.Types.ObjectId,
+      ref: "Organizer",
+      required: [true, "Organizer ID is required"],
+      index: true,
+    },
+    title: {
+      type: String,
+      required: [true, "Event title is required"],
+      trim: true,
+    },
+    description: {
+      type: String,
+      required: [true, "Event description is required"],
+      trim: true,
+    },
+    date: {
+      type: Date,
+      required: [true, "Event date is required"],
+    },
+    location: {
+      type: String,
+      required: [true, "Event location is required"],
+      trim: true,
+    },
+    posterUrl: {
+      type: String,
+      required: [true, "Event poster URL is required"],
+      trim: true,
+    },
+    posterPublicId: {
+      type: String,
+      trim: true,
+      default: null,
+    },
+    dressCode: {
+      type: String,
+      required: [true, "Dress code is required"],
+      trim: true,
+    },
+    policies: {
+      type: String,
+      required: [true, "Event policies are required"],
+      trim: true,
+    },
   },
-  relations: {
-    organizerId: { modelName: "Organizer" },
+  {
+    timestamps: true,
+    versionKey: false,
   },
-});
+);
+
+eventSchema.index({ organizerId: 1, date: 1 });
+eventSchema.index({ organizerId: 1, title: 1, date: 1 }, { unique: true });
+
+const Event = model<IEvent>("Event", eventSchema);
 
 export default Event;
-

@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import mongoose from "mongoose";
 import { Request, Response, NextFunction } from "express";
 import Order from "../models/order";
 import OrderItem from "../models/orderItem";
@@ -13,7 +14,6 @@ import { sendEmail } from "../utils/email";
 import { generateTicketEmailTemplate } from "../utils/ticketEmailTemplate";
 import { releaseOrderReservation } from "./orderReservationService";
 import { SquadService } from "./squadService";
-import { startSession } from "../db/pg";
 
 type FulfilledOrderResult =
   | {
@@ -26,16 +26,16 @@ type FulfilledOrderResult =
       alreadyProcessed: false;
       event: {
         title: string;
-        organizerId: string;
+        organizerId: mongoose.Types.ObjectId;
       };
       orderItems: Array<{
-        ticketTypeId: string;
+        ticketTypeId: mongoose.Types.ObjectId;
         ticketTypeName: string;
         quantity: number;
       }>;
       createdTickets: Array<{
         ticketCode: string;
-        ticketTypeId: string;
+        ticketTypeId: mongoose.Types.ObjectId;
       }>;
     };
 
@@ -82,10 +82,10 @@ const sendTicketsEmail = async ({
   eventTitle: string;
   createdTickets: Array<{
     ticketCode: string;
-    ticketTypeId: string;
+    ticketTypeId: mongoose.Types.ObjectId;
   }>;
   orderItems: Array<{
-    ticketTypeId: string;
+    ticketTypeId: mongoose.Types.ObjectId;
     ticketTypeName: string;
   }>;
 }) => {
@@ -139,7 +139,7 @@ const fulfillPaidOrder = async ({
   platformFeeTotal,
   organizerPayoutAmount,
 }: {
-  session: any;
+  session: mongoose.ClientSession;
   order: typeof Order.prototype;
   platformFeeTotal: number;
   organizerPayoutAmount: number;
@@ -187,10 +187,10 @@ const fulfillPaidOrder = async ({
 
   const ticketTypeIds = orderItems.map((item) => item.ticketTypeId);
 
-  const ticketTypes = (await TicketType.find({
+  const ticketTypes = await TicketType.find({
     _id: { $in: ticketTypeIds },
     eventId: order.eventId,
-  }).session(session)) as Array<any>;
+  }).session(session);
 
   if (ticketTypes.length !== orderItems.length) {
     throw new AppError(
@@ -288,7 +288,7 @@ const fulfillPaidOrder = async ({
   };
 };
 
-// const attemptImmediateOrganizerPayout = async (orderId: string) => {
+// const attemptImmediateOrganizerPayout = async (orderId: mongoose.Types.ObjectId) => {
 
 //   const order = await Order.findById(orderId)
 //     .select(
@@ -458,8 +458,8 @@ export const handleSquadWebhook = catchAsync(
       return res.sendStatus(200);
     }
 
-    const session = await startSession();
-    await session.startTransaction();
+    const session = await mongoose.startSession();
+    session.startTransaction();
 
     try {
       const pendingOrder = await Order.findById(order._id).session(session);
@@ -475,12 +475,12 @@ export const handleSquadWebhook = catchAsync(
 
       if (fulfillment.alreadyProcessed) {
         await session.commitTransaction();
-        await session.endSession();
+        session.endSession();
         return res.sendStatus(200);
       }
 
       await session.commitTransaction();
-      await session.endSession();
+      session.endSession();
 
       // Best-effort side effects after commit.
       await Promise.allSettled([
@@ -496,7 +496,7 @@ export const handleSquadWebhook = catchAsync(
       return res.sendStatus(200);
     } catch (error) {
       await session.abortTransaction();
-      await session.endSession();
+      session.endSession();
       throw error;
     }
   },

@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from "express";
+import mongoose, { PipelineStage } from "mongoose";
 import Ticket from "../models/ticket";
 import { AppError } from "../utils/appError";
 import { catchAsync } from "../utils/catchAsync";
@@ -22,10 +23,10 @@ export const getAdminTickets = catchAsync(
     }
 
     if (eventId) {
-      matchStage.eventId = eventId;
+      matchStage.eventId = new mongoose.Types.ObjectId(eventId);
     }
 
-    const pipeline = [
+    const pipeline: PipelineStage[] = [
       {
         $match: matchStage,
       },
@@ -56,7 +57,7 @@ export const getAdminTickets = catchAsync(
     if (organizerId) {
       pipeline.push({
         $match: {
-          "organizer._id": organizerId,
+          "organizer._id": new mongoose.Types.ObjectId(organizerId),
         },
       });
     }
@@ -171,7 +172,7 @@ export const getAdminTicketById = catchAsync(
     const ticketResult = await Ticket.aggregate([
       {
         $match: {
-          _id: ticketId,
+          _id: new mongoose.Types.ObjectId(ticketId),
         },
       },
       {

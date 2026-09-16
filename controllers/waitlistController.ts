@@ -96,8 +96,8 @@ export const getEventWaitlist = catchAsync(
 
     const ticketTypes = await TicketType.find({ eventId: event._id }).lean();
     const ticketTypeNameById = new Map(
-      ticketTypes.map((ticketType: { _id: string; name: string }) => [
-        ticketType._id,
+      ticketTypes.map((ticketType) => [
+        ticketType._id.toString(),
         ticketType.name,
       ]),
     );
@@ -106,12 +106,11 @@ export const getEventWaitlist = catchAsync(
       .sort({ createdAt: 1 })
       .lean();
 
-    const formattedEntries = entries.map(
-      (entry: { ticketTypeId: string; [key: string]: unknown }) => ({
-        ...entry,
-        ticketTypeName: ticketTypeNameById.get(entry.ticketTypeId) ?? "Unknown",
-      }),
-    );
+    const formattedEntries = entries.map((entry) => ({
+      ...entry,
+      ticketTypeName:
+        ticketTypeNameById.get(entry.ticketTypeId.toString()) ?? "Unknown",
+    }));
 
     res.status(200).json({
       status: "success",

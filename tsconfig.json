@@ -15,9 +15,9 @@
     "types": ["node"],
 
     // Strictness
-    "strict": false,
-    "noUncheckedIndexedAccess": false,
-    "exactOptionalPropertyTypes": false,
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
 
     // Source maps & declarations
     "sourceMap": true,

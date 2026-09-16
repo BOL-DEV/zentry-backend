@@ -1,10 +1,10 @@
 import { Request, Response, NextFunction } from "express";
+import mongoose, { PipelineStage } from "mongoose";
 import Order from "../models/order";
 import { AppError } from "../utils/appError";
 import { catchAsync } from "../utils/catchAsync";
 import { adminOrdersQuerySchema } from "../validations/adminOrder.schema";
 import { orderIdParamSchema } from "../validations/payment.schema";
-import { isValidId } from "../utils/id";
 
 
 
@@ -33,10 +33,10 @@ export const getAdminOrders = catchAsync(
     }
 
     if (eventId) {
-      matchStage.eventId = eventId;
+      matchStage.eventId = new mongoose.Types.ObjectId(eventId);
     }
 
-    const pipeline = [
+    const pipeline: PipelineStage[] = [
       {
         $match: matchStage,
       },
@@ -67,7 +67,7 @@ export const getAdminOrders = catchAsync(
     if (organizerId) {
       pipeline.push({
         $match: {
-          "organizer._id": organizerId,
+          "organizer._id": new mongoose.Types.ObjectId(organizerId),
         },
       });
     }
@@ -192,7 +192,7 @@ export const getAdminOrderById = catchAsync(
     const orderResult = await Order.aggregate([
       {
         $match: {
-          _id: orderId,
+          _id: new mongoose.Types.ObjectId(orderId),
         },
       },
       {

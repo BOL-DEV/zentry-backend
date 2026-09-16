@@ -1,4 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
+import mongoose from "mongoose";
 import Order from "../models/order";
 import OrderItem from "../models/orderItem";
 import { TicketType } from "../models/ticketTypes";
@@ -18,7 +19,6 @@ import {
   getEffectivePlatformFeeSettings,
 } from "../services/platformFeeService";
 import { SquadService } from "../services/squadService";
-import { startSession } from "../db/pg";
 
 const SQUAD_TRANSFER_FEE_NAIRA = 25;
 const SQUAD_MODAL_GATEWAY_PERCENT = 0.015; // 1.5%
@@ -36,10 +36,10 @@ export const createPurchase = catchAsync(
 
     const ticketTypeIds = items.map((item) => item.ticketTypeId);
 
-    const ticketTypes = (await TicketType.find({
+    const ticketTypes = await TicketType.find({
       _id: { $in: ticketTypeIds },
       eventId: event._id,
-    }).lean()) as Array<any>;
+    }).lean();
 
     if (ticketTypes.length !== ticketTypeIds.length) {
       return next(new AppError("One or more ticket types were not found", 404));
@@ -129,18 +129,18 @@ export const createPurchase = catchAsync(
       checkoutUrl = squadPayment.checkout_url;
     }
 
-    const session = await startSession();
-    await session.startTransaction();
+    const session = await mongoose.startSession();
+    session.startTransaction();
 
     try {
       await cleanupExpiredReservationsForEvent({ eventId: event._id, session });
       await syncReservedQuantitiesForEvent({ eventId: event._id, session });
 
       // Re-check availability within transaction to prevent race conditions
-      const finalTicketTypes = (await TicketType.find({
+      const finalTicketTypes = await TicketType.find({
         _id: { $in: ticketTypeIds },
         eventId: event._id,
-      }).session(session)) as Array<any>;
+      }).session(session);
 
       const finalTicketTypeMap = new Map(
         finalTicketTypes.map((ticketType) => [
@@ -166,7 +166,7 @@ export const createPurchase = catchAsync(
         }
       }
 
-      const order = await Order.create({
+      const order = new Order({
         eventId: event._id,
         buyerName,
         buyerEmail,
@@ -181,7 +181,9 @@ export const createPurchase = catchAsync(
         squadTransferFee,
         squadGatewayFee,
         organizerPayoutAmount,
-      }, session);
+      });
+
+      await order.save({ session });
 
       try {
         await reserveTicketQuantities({
@@ -214,7 +216,7 @@ export const createPurchase = catchAsync(
       );
 
       await session.commitTransaction();
-      await session.endSession();
+      session.endSession();
 
       return res.status(201).json({
         status: "success",
@@ -232,7 +234,7 @@ export const createPurchase = catchAsync(
       });
     } catch (error) {
       await session.abortTransaction();
-      await session.endSession();
+      session.endSession();
       throw error;
     }
   },

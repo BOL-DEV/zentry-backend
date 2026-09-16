@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { Request, Response, NextFunction } from "express";
 import OrganizerRequest from "../models/organizerRequest";
 import Organizer from "../models/organizer";
@@ -117,7 +116,7 @@ export const submitOrganizerRequest = catchAsync(
         ...(uploadedBanner ? { bannerUrl: uploadedBanner.url } : {}),
       });
 
-      const requestDoc = await OrganizerRequest.create({
+      const requestDoc = new OrganizerRequest({
         name: payload.name,
         email: payload.email,
         logoUrl: payload.logoUrl,
@@ -133,6 +132,8 @@ export const submitOrganizerRequest = catchAsync(
         preferredSlug: payload.preferredSlug,
         status: "pending",
       });
+
+      await requestDoc.save();
 
       res.status(201).json({
         status: "success",

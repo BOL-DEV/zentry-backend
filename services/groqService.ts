@@ -15,9 +15,9 @@ const groqApi = axios.create({
 
 type GenerateEventCopyInput = {
   title: string;
-  highlights?: string;
+  highlights?: string | undefined;
   tone?: string;
-  location?: string;
+  location?: string | undefined;
 };
 
 type GenerateEventCopyResult = {
