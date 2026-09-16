@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from "express";
+import mongoose from "mongoose";
 import Event from "../models/event";
 import Organizer from "../models/organizer";
 import Order from "../models/order";
@@ -38,7 +39,7 @@ export const getAdminEvents = catchAsync(
     const filter: Record<string, unknown> = {};
 
     if (organizerId) {
-      filter.organizerId = organizerId;
+      filter.organizerId = new mongoose.Types.ObjectId(organizerId);
     }
 
     if (typeof upcoming === "boolean") {
@@ -211,7 +212,7 @@ export const createAdminEventForOrganizer = catchAsync(
     const eventDate = new Date(String(body.date || ""));
 
     const existingEvent = await Event.findOne({
-      organizerId,
+      organizerId: new mongoose.Types.ObjectId(organizerId),
       title: String(body.title || ""),
       date: eventDate,
     }).lean();
@@ -251,7 +252,7 @@ export const createAdminEventForOrganizer = catchAsync(
       const event = await Event.create({
         ...data,
         date: new Date(data.date),
-        organizerId,
+        organizerId: new mongoose.Types.ObjectId(organizerId),
         posterPublicId: uploadedPoster?.publicId ?? null,
       });
 
@@ -290,7 +291,7 @@ export const getAdminEventById = catchAsync(
       Order.aggregate([
         {
           $match: {
-            eventId,
+            eventId: new mongoose.Types.ObjectId(eventId),
             paymentStatus: "paid",
           },
         },
@@ -309,7 +310,7 @@ export const getAdminEventById = catchAsync(
       Ticket.aggregate([
         {
           $match: {
-            eventId,
+            eventId: new mongoose.Types.ObjectId(eventId),
           },
         },
         {
@@ -325,7 +326,7 @@ export const getAdminEventById = catchAsync(
         },
       ]),
       Order.find({
-        eventId,
+        eventId: new mongoose.Types.ObjectId(eventId),
         paymentStatus: "paid",
       })
         .select(

@@ -1,6 +1,5 @@
-// @ts-nocheck
-import type { PostgresSession } from "../db/pg";
-import Order from "../models/order";
+import type { ClientSession, Types } from "mongoose";
+import Order, { type OrderDocument } from "../models/order";
 import OrderItem from "../models/orderItem";
 import { TicketType } from "../models/ticketTypes";
 import { AppError } from "../utils/appError";
@@ -24,38 +23,41 @@ export const reserveTicketQuantities = async ({
   items,
   session,
 }: {
-  eventId: string;
+  eventId: Types.ObjectId;
   items: ReservableItem[];
-  session: PostgresSession;
+  session: ClientSession;
 }) => {
   for (const item of items) {
-    const ticketType = await TicketType.findOne({
-      _id: item.ticketTypeId,
-      eventId,
-      isActive: true,
-    }).session(session).lean();
-
-    if (!ticketType) {
-      throw new AppError("One or more selected ticket types are no longer available", 409);
-    }
-
-    const availableQuantity =
-      Number(ticketType.quantityAvailable || 0) -
-      Number(ticketType.quantitySold || 0) -
-      Number(ticketType.quantityReserved || 0);
-
-    if (availableQuantity < item.quantity) {
-      throw new AppError("One or more selected ticket types are no longer available", 409);
-    }
-
     const reserveResult = await TicketType.updateOne(
-      { _id: item.ticketTypeId, eventId },
-      { $inc: { quantityReserved: item.quantity } },
+      {
+        _id: item.ticketTypeId,
+        eventId,
+        isActive: true,
+        $expr: {
+          $gte: [
+            {
+              $subtract: [
+                "$quantityAvailable",
+                { $add: ["$quantitySold", "$quantityReserved"] },
+              ],
+            },
+            item.quantity,
+          ],
+        },
+      },
+      {
+        $inc: {
+          quantityReserved: item.quantity,
+        },
+      },
       { session },
     );
 
     if (reserveResult.modifiedCount !== 1) {
-      throw new AppError("One or more selected ticket types are no longer available", 409);
+      throw new AppError(
+        "One or more selected ticket types are no longer available",
+        409,
+      );
     }
   }
 };
@@ -64,8 +66,8 @@ export const releaseOrderReservation = async ({
   order,
   session,
 }: {
-  order: any;
-  session: PostgresSession;
+  order: OrderDocument;
+  session: ClientSession;
 }) => {
   if (order.paymentStatus !== "pending" || order.reservationReleasedAt) {
     return false;
@@ -90,7 +92,7 @@ export const releaseOrderReservation = async ({
 
   order.paymentStatus = "cancelled";
   order.reservationReleasedAt = new Date();
-  await order.save(session);
+  await order.save({ session });
 
   return true;
 };
@@ -99,13 +101,16 @@ export const cleanupExpiredReservationsForEvent = async ({
   eventId,
   session,
 }: {
-  eventId: string;
-  session: PostgresSession;
+  eventId: Types.ObjectId;
+  session: ClientSession;
 }): Promise<ExpiredReservationCleanupResult> => {
   const expiredOrders = await Order.find({
     eventId,
     paymentStatus: "pending",
-    reservationReleasedAt: null,
+    $or: [
+      { reservationReleasedAt: { $exists: false } },
+      { reservationReleasedAt: null },
+    ],
     reservationExpiresAt: { $lte: new Date() },
   }).session(session);
 
@@ -113,24 +118,33 @@ export const cleanupExpiredReservationsForEvent = async ({
 
   for (const order of expiredOrders) {
     const released = await releaseOrderReservation({ order, session });
-    if (released) releasedOrders += 1;
+
+    if (released) {
+      releasedOrders += 1;
+    }
   }
 
-  return { releasedOrders };
+  return {
+    releasedOrders,
+  };
 };
 
 export const syncReservedQuantitiesForEvent = async ({
   eventId,
   session,
 }: {
-  eventId: string;
-  session: PostgresSession;
+  eventId: Types.ObjectId;
+  session: ClientSession;
 }) => {
   const now = new Date();
+
   const activePendingOrders = await Order.find({
     eventId,
     paymentStatus: "pending",
-    reservationReleasedAt: null,
+    $or: [
+      { reservationReleasedAt: { $exists: false } },
+      { reservationReleasedAt: null },
+    ],
     reservationExpiresAt: { $gt: now },
   })
     .select("_id")
@@ -139,27 +153,34 @@ export const syncReservedQuantitiesForEvent = async ({
 
   const pendingOrderIds = activePendingOrders.map((order) => order._id);
 
-  await TicketType.updateMany({ eventId }, { $set: { quantityReserved: 0 } }, { session });
+  await TicketType.updateMany(
+    { eventId },
+    { $set: { quantityReserved: 0 } },
+    { session },
+  );
 
-  if (!pendingOrderIds.length) return;
-
-  const orderItems = await OrderItem.find({ orderId: { $in: pendingOrderIds } })
-    .select("ticketTypeId quantity")
-    .session(session)
-    .lean();
-
-  const reservedByTicketType = new Map<string, number>();
-  for (const item of orderItems) {
-    const key = String(item.ticketTypeId);
-    reservedByTicketType.set(key, (reservedByTicketType.get(key) || 0) + Number(item.quantity || 0));
+  if (!pendingOrderIds.length) {
+    return;
   }
 
-  for (const [ticketTypeId, reserved] of reservedByTicketType.entries()) {
+  const reservedByTicketType = await OrderItem.aggregate<{
+    _id: Types.ObjectId;
+    reserved: number;
+  }>([
+    { $match: { orderId: { $in: pendingOrderIds } } },
+    {
+      $group: {
+        _id: "$ticketTypeId",
+        reserved: { $sum: "$quantity" },
+      },
+    },
+  ]).session(session);
+
+  for (const row of reservedByTicketType) {
     await TicketType.updateOne(
-      { _id: ticketTypeId, eventId },
-      { $set: { quantityReserved: reserved } },
+      { _id: row._id, eventId },
+      { $set: { quantityReserved: row.reserved } },
       { session },
     );
   }
 };
-

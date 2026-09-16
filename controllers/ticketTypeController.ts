@@ -163,7 +163,7 @@ export const updateTicketTypeQuantity = catchAsync(
     if (quantityAvailable > previousQuantityAvailable) {
       try {
         await notifyWaitlistForTicketType(
-          ticketType._id,
+          ticketType._id.toString(),
           quantityAvailable - previousQuantityAvailable,
         );
       } catch (error) {

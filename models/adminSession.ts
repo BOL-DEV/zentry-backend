@@ -1,36 +1,49 @@
-import { createModel } from "../db/orm";
+import { Schema, model, Document, Types } from "mongoose";
 
-export interface IAdminSession {
-  _id: string;
-  adminId: string;
+export interface IAdminSession extends Document {
+  adminId: Types.ObjectId;
   isActive: boolean;
   userAgent?: string;
   ipAddress?: string;
   deviceName?: string;
   lastSeenAt: Date;
-  createdAt?: Date;
-  updatedAt?: Date;
-  save?: (session?: any) => Promise<any>;
-  set?: (values: Record<string, any>) => void;
 }
 
-const AdminSession = createModel<IAdminSession>({
-  modelName: "AdminSession",
-  tableName: "admin_sessions",
-  fields: {
-    _id: "id",
-    adminId: "admin_id",
-    isActive: "is_active",
-    userAgent: "user_agent",
-    ipAddress: "ip_address",
-    deviceName: "device_name",
-    lastSeenAt: "last_seen_at",
-    createdAt: "created_at",
-    updatedAt: "updated_at",
+const adminSessionSchema = new Schema<IAdminSession>(
+  {
+    adminId: {
+      type: Schema.Types.ObjectId,
+      ref: "Admin",
+      required: true,
+      index: true,
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
+      index: true,
+    },
+    userAgent: {
+      type: String,
+      trim: true,
+    },
+    ipAddress: {
+      type: String,
+      trim: true,
+    },
+    deviceName: {
+      type: String,
+      trim: true,
+    },
+    lastSeenAt: {
+      type: Date,
+      default: Date.now,
+    },
   },
-  relations: {
-    adminId: { modelName: "Admin" },
+  {
+    timestamps: true,
   },
-});
+);
+
+const AdminSession = model<IAdminSession>("AdminSession", adminSessionSchema);
 
 export default AdminSession;

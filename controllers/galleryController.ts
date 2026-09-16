@@ -113,7 +113,7 @@ export const createGalleryItemsBulk = catchAsync(
       .lean();
     let nextDisplayOrder = (lastItem?.displayOrder ?? -1) + 1;
 
-    const created: Array<Awaited<ReturnType<typeof Gallery.create>>> = [];
+    const created: any[] = [];
     const failed: Array<{ filename: string; reason: string }> = [];
 
     for (const file of imageFiles) {
@@ -173,16 +173,16 @@ export const getGalleryItems = catchAsync(async (req, res, next) => {
     })
     .lean();
 
-  const galleryItemIds = gallery.map((item: { _id: string }) => item._id);
+  const galleryItemIds = gallery.map((item) => item._id.toString());
   const [likeCounts, likedItemIds] = await Promise.all([
     getLikeCounts(galleryItemIds),
     getLikedItemIds(req.ip || "", galleryItemIds),
   ]);
 
-  const galleryWithReactions = gallery.map((item: { _id: string }) => ({
+  const galleryWithReactions = gallery.map((item) => ({
     ...item,
-    likeCount: likeCounts.get(item._id) ?? 0,
-    hasLiked: likedItemIds.has(item._id),
+    likeCount: likeCounts.get(item._id.toString()) ?? 0,
+    hasLiked: likedItemIds.has(item._id.toString()),
   }));
 
   res.status(200).json({

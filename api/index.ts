@@ -14,10 +14,13 @@ import adminOrganizerRequestRoute from "../routes/adminOrganizerRequestRoute";
 import morgan from "morgan";
 import { globalErrorHandler } from "../middlewares/errorMiddleware";
 import cors from "cors";
+import connectDB from "../config/db";
 
 const app = express();
 
-app.set("trust proxy", 1);
+// Connect once on startup (module load), not per request.
+void connectDB();
+
 app.use(cors());
 app.use(morgan("dev"));
 app.use(
@@ -44,7 +47,7 @@ app.use("/api/v1/admin", adminRoute);
 app.get("/", (_req, res) => {
   res.status(200).json({
     status: "success",
-    message: "Welcome to the Zentra API with AWS database!",
+    message: "Welcome to the Zentra API!",
   });
 });
 

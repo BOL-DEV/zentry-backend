@@ -1,5 +1,4 @@
 import { Request, Response, NextFunction } from "express";
-import bcrypt from "bcryptjs";
 import jwt, { type SignOptions } from "jsonwebtoken";
 import Admin from "../models/admin";
 import AdminSession from "../models/adminSession";
@@ -62,7 +61,7 @@ export const adminLogin = catchAsync(
 
     const admin = await Admin.findOne({ email }).select("+password");
 
-    if (!admin || !(await bcrypt.compare(password, admin.password))) {
+    if (!admin || !(await admin.comparePassword(password))) {
       return next(new AppError("Incorrect email or password", 401));
     }
 

@@ -1,8 +1,7 @@
-import { createModel } from "../db/orm";
+import { Schema, model, Types } from "mongoose";
 
 interface IGallery {
-  _id: string;
-  organizerId: string;
+  organizerId: Types.ObjectId;
   imageUrl: string;
   imagePublicId?: string | null;
   caption?: string;
@@ -10,30 +9,63 @@ interface IGallery {
   displayOrder?: number;
   status?: "published" | "pending";
   submittedByName?: string | null;
-  createdAt?: Date;
-  updatedAt?: Date;
 }
 
-const Gallery = createModel<IGallery>({
-  modelName: "Gallery",
-  tableName: "galleries",
-  fields: {
-    _id: "id",
-    organizerId: "organizer_id",
-    imageUrl: "image_url",
-    imagePublicId: "image_public_id",
-    caption: "caption",
-    altText: "alt_text",
-    displayOrder: "display_order",
-    status: "status",
-    submittedByName: "submitted_by_name",
-    createdAt: "created_at",
-    updatedAt: "updated_at",
+const gallerySchema = new Schema<IGallery>(
+  {
+    organizerId: {
+      type: Types.ObjectId,
+      ref: "Organizer",
+      required: [true, "Organizer ID is required"],
+    },
+    imageUrl: {
+      type: String,
+      required: [true, "Image Url is required"],
+      trim: true,
+      unique: true,
+    },
+    imagePublicId: {
+      type: String,
+      trim: true,
+      default: null,
+    },
+    caption: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    altText: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    displayOrder: {
+      type: Number,
+      default: 0,
+    },
+    status: {
+      type: String,
+      enum: ["published", "pending"],
+      default: "published",
+      index: true,
+    },
+    submittedByName: {
+      type: String,
+      trim: true,
+      default: null,
+    },
   },
-  relations: {
-    organizerId: { modelName: "Organizer" },
+  {
+    timestamps: true,
+    versionKey: false,
   },
-});
+);
+
+gallerySchema.index({ organizerId: 1, displayOrder: 1 });
+gallerySchema.index({ organizerId: 1, status: 1, createdAt: -1 });
+
+gallerySchema.index({ organizerId: 1, imageUrl: 1 }, { unique: true });
+
+const Gallery = model<IGallery>("Gallery", gallerySchema);
 
 export default Gallery;
-
